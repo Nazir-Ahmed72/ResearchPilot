@@ -142,7 +142,7 @@ decisions.
 ### 1. Install
 
 ```bash
-git clone https://github.com/<your-username>/researchpilot.git
+git clone https://github.com/Nazir-Ahmed72/researchpilot.git
 cd researchpilot
 python -m venv .venv
 # Windows:  .venv\Scripts\activate      macOS/Linux:  source .venv/bin/activate
