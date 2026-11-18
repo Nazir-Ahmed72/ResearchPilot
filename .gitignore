@@ -1,0 +1,32 @@
+# Environments & secrets
+.venv/
+.env
+.env.*
+!.env.example
+
+# Caches (pip, HF models, temp build dirs)
+.cache/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# Runtime data (uploaded PDFs, local Qdrant/SQLite stores)
+data/
+*.db
+
+# Experiment outputs are committed deliberately under experiments/results; scratch runs are not
+experiments/scratch/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,189 @@
+# Development Progress
+
+## Environment
+
+| Item | Value |
+|---|---|
+| Python | 3.10.10 (only interpreter on the machine; spec asked for 3.11+, all chosen libraries support 3.10) |
+| Virtual env | `E:\ResearchPilot\.venv` — all packages installed here only |
+| Caches | pip → `.cache/pip` (via `.venv/pip.ini`), pytest → `.cache/pytest`; set `TMP`/`TEMP` to `.cache/tmp` when installing |
+| Database | Neon serverless PostgreSQL (SQLite fallback for local dev/tests) |
+| Redis / Qdrant | Upstash Redis, Qdrant Cloud (free tiers) |
+| LLM | Groq |
+| Docker | Installed but not used yet (deferred by user) |
+
+---
+
+## M1 — Foundation ✅ (2026-11-19)
+
+### Completed
+* Project packaging (`pyproject.toml`), pinned lock file (`requirements/lock.txt`).
+* Typed settings from environment (`app/core/config.py`), incl. Neon pooled/direct URLs and Groq.
+* Structured JSON logging with request IDs and secret redaction (`app/core/logging.py`).
+* Request-context ASGI middleware: request ID header, access log, safe 500 handling.
+* Centralised error schema and exception handlers (`app/core/exceptions.py`).
+* Shared infrastructure clients (`app/core/resources.py`): DB engine, Qdrant, Redis.
+* SQLAlchemy models for all six required tables (`app/database/models.py`).
+* Neon-aware engine: prepared statements off on pooled endpoint, pre-ping, recycle, timeouts.
+* Alembic set up; initial migration generated and hand-reviewed (fixed JSONB `Text` import and
+  portable `now()` defaults). Migrations use the direct Neon endpoint.
+* Health endpoints: `GET /api/v1/health` (readiness, parallel checks with timeouts, 503 when
+  degraded) and `GET /api/v1/health/live`.
+* `.env.example`, `.gitignore`, `docs/architecture.md` (with Mermaid diagrams).
+
+### Files created
+`pyproject.toml`, `requirements/lock.txt`, `alembic.ini`, `migrations/env.py`,
+`migrations/versions/20261119_76b16bea068b_initial_schema.py`, `app/main.py`,
+`app/core/{config,logging,exceptions,middleware,resources}.py`,
+`app/database/{models,session}.py`, `app/services/health.py`, `app/api/dependencies.py`,
+`app/api/routes/health.py`, `tests/conftest.py`, `tests/unit/{test_config,test_logging,
+test_api_errors,test_session}.py`, `tests/integration/{test_health,test_models,
+test_migrations}.py`, `.env.example`, `.gitignore`, `README.md`, `docs/architecture.md`.
+
+### Dependencies added
+fastapi, uvicorn[standard], pydantic, pydantic-settings, sqlalchemy, alembic, psycopg[binary],
+redis, qdrant-client, python-multipart; dev: pytest, pytest-cov, httpx2, ruff.
+(`httpx2` replaces `httpx` for tests: Starlette 1.7's TestClient deprecates `httpx`.)
+
+### Tests executed
+`pytest`: **51 passed, 1 skipped**. The skip is the PostgreSQL migration test, which runs only
+when `TEST_DATABASE_URL` is set (point it at a Neon branch's direct URL).
+`ruff check` and `ruff format --check`: clean.
+Manual smoke test with real uvicorn on SQLite: `/docs` 200, readiness correctly degraded while
+Redis was unavailable.
+
+### Neon verification (2026-11-19)
+* Pooled and direct endpoints both connect (PostgreSQL 18.7, region ap-southeast-1).
+* Migration round-trip test passed on Neon (`TEST_DATABASE_URL` = direct URL): schema matches
+  models exactly; downgrade removes all tables. Run before `upgrade` while the DB was empty.
+* `alembic upgrade head` applied to Neon: 6 tables + `alembic_version` (revision 76b16bea068b).
+* Bug found and fixed: Alembic `env.py` and the migration test did not normalise raw Neon
+  `postgresql://` URLs, so SQLAlchemy fell back to the missing `psycopg2` driver.
+
+### Hosted Redis + Qdrant (2026-11-19)
+Decision: run the real architecture (separate Celery worker) without Docker by using free
+managed services. Qdrant's embedded folder mode was rejected because only one process can open
+it, and the API and worker both need it.
+* Redis: Upstash (TLS, `rediss://`). Read/write verified.
+* Qdrant: Qdrant Cloud free cluster (ap-northeast-2), API key auth. Verified.
+* `GET /api/v1/health` returns **200 ok** with all three dependencies (database 2.9 s cold /
+  0.4 s warm; Redis 0.07 s warm; Qdrant 0.2 s warm). No secrets in logs.
+* Health-check timeout default raised 2 s to 5 s so a Neon cold start is not reported as down.
+
+### Known problems / not yet verified
+* Upstash free tier limits monthly commands; Celery idle polling must be tuned in M2.
+* `GROQ_API_KEY` not set yet (not needed until M4).
+
+
+---
+
+## M2 — Ingestion ✅ (2026-11-19)
+
+### Completed
+* Upload validation (extension, MIME, size, signature, parse, encryption, page limit) and
+  filename sanitisation.
+* PyMuPDF extraction with page numbers, font-based heading detection, title/author/year/DOI/arXiv
+  metadata; text cleaning (ligatures, hyphenation, running headers/footers).
+* Structure-aware chunking with token budgets, sentence-level overlap, page ranges, deterministic
+  IDs, references excluded by default.
+* Dense embeddings (BGE-small, lazy-loaded once per process, cached on E:) and an own BM25
+  sparse encoder; Qdrant collection with named dense + sparse (IDF) vectors and payload indexes.
+* Idempotent pipeline with permanent/transient error classification, compensation, redacted
+  error storage, and protection against deletes racing ingestion.
+* Celery worker (Upstash TLS, low-traffic polling), plus an in-process dispatcher.
+* Repositories; `PaperService`; endpoints: `POST /papers/upload` (multi-file, per-file outcomes),
+  `GET /papers` (pagination, status/collection filters), `GET /papers/{id}`,
+  `DELETE /papers/{id}`, `POST /papers/{id}/reingest`.
+* Docs: `docs/ingestion_pipeline.md`; architecture updated.
+
+### Decisions
+* `app/embeddings` and `app/vectorstore` are separate packages (not inside `ingestion/`) because
+  retrieval (M3) also needs them; keeps ingestion and retrieval independent.
+* Own BM25 encoder instead of fastembed: no second runtime, deterministic, testable.
+* Chunk size 512 → 350 tokens: BGE-small's limit is 512 and each chunk gets a context header.
+* Upload status codes: 202 if any file accepted; otherwise the shared reason (409 duplicate,
+  413 too large, 415 not PDF, 503 queue down), else 400; per-file details always included.
+
+### Bugs found by tests and real-data runs (all fixed)
+* Secrets in `key=value` form were not redacted in logs or stored errors.
+* SQLAlchemy 2.0 does not cascade objects added via backrefs: re-ingest jobs were never saved.
+* Pydantic read the `collection` relationship object instead of its name (500 on GET).
+* Real arXiv PDF: section numbers on separate lines were missed; wrapped headings split in two;
+  arXiv ID (rotated stamp) not found, so the year came from the v4 PDF date.
+
+### Dependencies added
+pymupdf, sentence-transformers (torch 2.14 CPU build from the PyTorch CPU index), celery[redis],
+snowballstemmer. BGE-small model (129 MB) cached in `E:\ResearchPilot\.cache\hf`.
+
+### Tests executed
+* `pytest`: **148 passed, 4 skipped** (PostgreSQL migration test without `TEST_DATABASE_URL`;
+  3 real-model tests without `RUN_MODEL_TESTS=1`).
+* `RUN_MODEL_TESTS=1 pytest tests/integration/test_real_embedder.py`: **3 passed** (real BGE).
+* `ruff check` / `ruff format --check`: clean.
+* **Live end-to-end** (Neon + Upstash + Qdrant Cloud, real Celery worker, real BGE):
+  arXiv 2005.11401 → `ready` in ~12 s, 43 chunks, 25 headings, correct title/year/arXiv id;
+  Qdrant schema and payload indexes verified; delete → 204, 0 vectors left, file removed;
+  re-upload → 409 with existing id. No secrets found in API/worker logs.
+
+### Known problems / limitations
+See `docs/ingestion_pipeline.md` → Known limitations (no OCR, equations, lone-letter appendix
+headings, authors only from metadata, local-disk file storage).
+* The worker re-checks Hugging Face for model updates on each start (needs network); setting
+  `HF_HUB_OFFLINE=1` after the first download avoids that.
+* Upstash command usage has not been measured over a long idle period yet.
+
+### State left in the cloud services
+* Neon: paper `08d84b5e-924d-4ee6-ba0d-4f0cd12e056d` (RAG paper, collection `rag-papers`) and
+  its job. Kept intentionally as test data for M3 retrieval.
+* Qdrant Cloud: collection `researchpilot_chunks` with that paper's 43 points.
+
+
+---
+
+## M3 — Retrieval engine ✅ (2026-11-19)
+
+### Completed
+* Dense, sparse and hybrid retrievers over Qdrant with collection/paper/section/year filters;
+  all searches of a request batched into one Qdrant round trip.
+* Reciprocal Rank Fusion with deduplication, weights and full per-stage score/rank history.
+* Cross-encoder reranking (bge-reranker-base), model loaded once per process.
+* LLM query transformation (rewrite, alternatives, decomposition) with structured output,
+  validation, caps and graceful fallback; provider-neutral LLM factory (Groq).
+* `RetrievalEngine` implementing strategies E1–E5 with timings and structured logs.
+* `POST /api/v1/retrieval/search` and `scripts/compare_retrieval.py`.
+* Shared enums moved to `app/core/types.py` (no schema change).
+* Docs: `docs/retrieval_engine.md`; architecture updated.
+
+### Decisions
+* Groq's `llama-3.3-70b-versatile` is no longer available to this key: default models are now
+  `openai/gpt-oss-120b` (main) and `openai/gpt-oss-20b` (fast; used for query transformation).
+* The three retrievers live in one module (`retrieval/retrievers.py`, ~100 lines) instead of three
+  files from the suggested layout, because they share the batched searcher.
+* Rerank candidates 20 → 10 after measuring CPU latency (12.8 s → 7.5 s).
+* Reranker outputs are documented as uncalibrated; no fixed relevance threshold is assumed.
+
+### Dependencies added
+langchain-core 1.7, langchain-groq 1.1 (groq 0.37). Reranker model bge-reranker-base (~1.1 GB)
+cached in `E:\ResearchPilot\.cache\hf` (total model cache 1.2 GB).
+
+### Tests executed
+* `pytest`: **187 passed, 8 skipped** (opt-in: 1 PostgreSQL, 4 real-model, 3 live Groq).
+* `RUN_MODEL_TESTS=1`: **4 passed** (real BGE embedder + reranker).
+* `RUN_LIVE_TESTS=1 pytest tests/integration/test_live_groq.py`: **3 passed**.
+* `ruff check` / `ruff format --check`: clean.
+* Live E1–E5 comparison on the RAG paper in Qdrant Cloud (see `docs/retrieval_engine.md`).
+
+### Bugs / findings
+* Fixed: a 3-character junk query ("ok?") passed validation; now ≥3 letters/digits required.
+* Finding: reranker scores are not calibrated (a relevant passage scored 0.007).
+* Finding: the chunk answering "What retriever does RAG use?" ranks low in every strategy (math-
+  heavy text; single-topic corpus weakens BM25). To be quantified in M5, not patched ad hoc.
+
+### Known problems
+* Reranking takes ~7.5 s per query on this CPU.
+* Quality of E1–E5 is not yet measured (needs the labelled evaluation set, M5).
+
+### Next milestone: M4 — LangGraph orchestration
+Typed state, the eight nodes (understanding, planning, retrieval, reranking, evidence evaluation,
+synthesis, citation verification, response), conditional routing with bounded retries, Postgres
+checkpointing on Neon, research endpoints with background execution and status tracking.
