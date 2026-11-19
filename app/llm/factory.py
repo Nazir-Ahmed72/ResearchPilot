@@ -20,8 +20,12 @@ class LLMConfigurationError(DependencyUnavailableError):
     code = "llm_not_configured"
 
 
-def create_chat_model(settings: Settings, tier: ModelTier = "main") -> BaseChatModel:
+def create_chat_model(
+    settings: Settings, tier: ModelTier = "main", *, reasoning_effort: str | None = None
+) -> BaseChatModel:
+    """``reasoning_effort`` overrides the default effort for this model instance."""
     model = settings.llm_model if tier == "main" else settings.llm_fast_model
+    effort = reasoning_effort or settings.llm_reasoning_effort_default
     if settings.llm_provider == "groq":
         if settings.groq_api_key is None:
             raise LLMConfigurationError("GROQ_API_KEY is not set")
@@ -34,6 +38,7 @@ def create_chat_model(settings: Settings, tier: ModelTier = "main") -> BaseChatM
             max_tokens=settings.llm_max_tokens,
             timeout=settings.llm_timeout_seconds,
             max_retries=settings.llm_max_retries,
+            **({"reasoning_effort": effort} if effort else {}),
         )
     raise LLMConfigurationError(
         f"LLM provider {settings.llm_provider!r} has no real model; tests inject fakes instead"

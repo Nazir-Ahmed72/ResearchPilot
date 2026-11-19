@@ -271,3 +271,20 @@ def test_arxiv_id_and_year_from_raw_front_text() -> None:
     )
     assert meta.arxiv_id == "2005.11401"
     assert meta.year == 2020  # submission year from the ID, not the v4 PDF date
+
+
+def test_small_caps_title_lines_with_slightly_different_sizes() -> None:
+    from app.ingestion.pdf_loader import _mark_title
+
+    blocks = [
+        TextBlock(1, "SELF-RAG: LEARNING TO RETRIEVE, GENERATE, AND", 13.7, False, 81, 95, 792),
+        TextBlock(1, "CRITIQUE THROUGH SELF-REFLECTION", 13.8, False, 100, 114, 792),
+        TextBlock(1, "Akari Asai", 10.0, True, 138, 148, 792),
+    ] + [
+        TextBlock(1, f"Body paragraph {i}", 10.0, False, 300 + 20 * i, 310 + 20 * i, 792)
+        for i in range(5)
+    ]
+    assert [b.text for b in _mark_title(blocks) if b.is_title] == [
+        "SELF-RAG: LEARNING TO RETRIEVE, GENERATE, AND",
+        "CRITIQUE THROUGH SELF-REFLECTION",
+    ]

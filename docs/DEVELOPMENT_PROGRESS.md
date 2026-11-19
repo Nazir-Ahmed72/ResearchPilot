@@ -183,7 +183,76 @@ cached in `E:\ResearchPilot\.cache\hf` (total model cache 1.2 GB).
 * Reranking takes ~7.5 s per query on this CPU.
 * Quality of E1–E5 is not yet measured (needs the labelled evaluation set, M5).
 
-### Next milestone: M4 — LangGraph orchestration
-Typed state, the eight nodes (understanding, planning, retrieval, reranking, evidence evaluation,
-synthesis, citation verification, response), conditional routing with bounded retries, Postgres
-checkpointing on Neon, research endpoints with background execution and status tracking.
+
+---
+
+## M4 — LangGraph orchestration ✅ (2026-11-19)
+
+### Completed
+* Typed, JSON-serialisable `ResearchState` with reducers for errors, trace and node timings.
+* Eight nodes: understand_query, plan_queries, retrieve, rerank, evaluate_evidence, synthesize,
+  verify_citations, respond. Conditional routing on complexity/intent, evidence sufficiency,
+  verification results; bounded retrieval retries (1) and repair passes (1).
+* Structured LLM outputs (QueryAnalysis, EvidenceAssessment, Synthesis with reported/inferred
+  claims, VerificationResult); graceful fallbacks for auxiliary LLM failures.
+* Two-layer citation verification and deterministic response rendering with numbered references.
+* Prompt-injection defences for evidence and questions.
+* PostgresSaver checkpoints on Neon (direct URL, health-checked pool), resume endpoint,
+  crash-redelivery resume, human-in-the-loop `interrupt_before`; RetryPolicy on I/O and synthesis
+  nodes; whole-run deadline.
+* ResearchService/ResearchRunner, Celery `research` queue, inline dispatcher, progress via
+  `current_node`, metrics (latency per node, tokens per model, optional cost, retries, errors).
+* Endpoints: `POST /research/query`, `GET /research/{id}`, `POST /research/{id}/resume`.
+* Ingested 3 more arXiv papers (DPR, GraphRAG, Self-RAG): 4 papers / 243 chunks.
+* Docs: `docs/orchestration.md`; README and architecture updated.
+
+### Decisions
+* Synchronous graph: LangGraph node timeouts need async nodes, and psycopg async is awkward on
+  Windows; per-call timeouts + a whole-run deadline instead (deadline in the run config so a
+  resumed run gets a fresh budget).
+* Response generation is deterministic (no LLM) so it cannot add unverified statements.
+* Fast model for understanding/planning/evaluation; main model for synthesis (reasoning medium)
+  and verification (reasoning low).
+* Cross-paper questions diversify candidates per paper before reranking.
+* Ingestion metadata is extraction-owned: re-ingestion refreshes title/authors/year/DOI.
+
+### Schema / database changes (non-destructive)
+* Migration `6d4ebaab7ead`: nullable `research_requests.current_node`. Applied to Neon.
+* `JobStatus.INTERRUPTED` (string enum, no migration needed).
+* LangGraph `checkpoint*` tables created by `PostgresSaver.setup()` in Neon; Alembic configured
+  to ignore them (autogenerate diff vs Neon: empty).
+
+### Dependencies added
+langgraph 1.2, langgraph-checkpoint-postgres 3.2, psycopg-pool 3.3.
+
+### Tests executed
+* `pytest`: **241 passed, 9 skipped** (opt-in: PostgreSQL migration, real models, live Groq,
+  live Neon checkpoint).
+* `RUN_LIVE_TESTS=1 pytest tests/integration/test_live_checkpoint.py`: **1 passed** (crash in one
+  process, resume from Neon in a new one, thread cleaned up).
+* `ruff check` / `ruff format --check`: clean.
+* Live end-to-end with Celery worker + Groq + Neon + Upstash + Qdrant Cloud: 3 questions
+  (factual, comparison, limitations) succeeded; results in `docs/orchestration.md`.
+
+### Bugs found and fixed
+* Self-RAG title extracted as only its second line (small caps sizes 13.7/13.8 pt).
+* Re-ingestion did not refresh extracted metadata.
+* Tokenizer warning when counting long paragraphs before splitting.
+* Node mutated the LLM's returned object in place (caught by a cross-test failure).
+* **Safety:** the PostgreSQL migration test runs `downgrade base`; it now refuses to run unless
+  the target database is empty (it was previously only safe because Neon was empty).
+* Live: summaries had no citations (repair on every run), single-paper evidence for comparisons,
+  verification prompt over Groq's 8k TPM limit, unbounded reasoning latency. See
+  `docs/orchestration.md` → "What the first live runs exposed".
+
+### Known problems
+* Groq free tier (8k tokens/min on gpt-oss-120b) throttles back-to-back runs.
+* One-sentence multi-hop questions may be classified simple and skip evidence evaluation.
+* No streaming responses (progress by polling).
+* Answer quality is not yet measured systematically (M5).
+
+### Next milestone: M5 — Observability and evaluation
+LangSmith tracing (configurable, redacted), evaluation dataset (simple, multi-document,
+comparison, limitation, insufficient-evidence and multi-query questions), retrieval metrics
+(Recall@K, Precision@K, MRR, nDCG), Ragas generation metrics, citation metrics, experiments
+E1–E5 with a reproducible report, evaluation endpoints.

@@ -6,14 +6,14 @@ import logging
 from uuid import UUID
 
 from celery import Task
-from celery.signals import worker_process_init, worker_process_shutdown
+from celery.signals import worker_process_init, worker_process_shutdown, worker_ready
 
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.core.resources import Resources
 from app.ingestion.errors import PermanentIngestionError, TransientIngestionError
 from app.workers.celery_app import celery_app
-from app.workers.dispatch import INGEST_TASK_NAME
+from app.workers.dispatch import INGEST_TASK_NAME, RESEARCH_TASK_NAME
 
 logger = logging.getLogger(__name__)
 _resources: Resources | None = None
@@ -29,10 +29,25 @@ def get_resources() -> Resources:
     return _resources
 
 
-@worker_process_init.connect
-def _init(**_: object) -> None:
+def _warm_up() -> None:
+    """Load models before the first task arrives instead of during it."""
     resources = get_resources()
-    _ = resources.dense_embedder.dimension  # load the model before the first task arrives
+    _ = resources.dense_embedder.dimension
+    if resources.reranker is not None:
+        resources.reranker.score("warm up", ["warm up"])
+
+
+@worker_process_init.connect  # prefork pool: runs in each child process
+def _init(**_: object) -> None:
+    _warm_up()
+
+
+@worker_ready.connect  # solo pool (Windows): tasks run in the main process
+def _ready(sender: object = None, **_: object) -> None:
+    pool_cls = getattr(getattr(sender, "controller", None), "pool_cls", None)
+    pool_name = f"{getattr(pool_cls, '__module__', '')}.{getattr(pool_cls, '__name__', '')}"
+    if "prefork" not in pool_name:  # prefork children warm up in worker_process_init instead
+        _warm_up()
 
 
 @worker_process_shutdown.connect
@@ -61,3 +76,12 @@ def ingest_paper(self: Task, paper_id: str, job_id: str) -> dict[str, object] | 
     if result is None:
         return None
     return {"paper_id": paper_id, "chunks": result.chunk_count, "pages": result.page_count}
+
+
+@celery_app.task(name=RESEARCH_TASK_NAME, bind=True, max_retries=0)
+def run_research(self: Task, request_id: str) -> str | None:
+    """Not auto-retried: a failed run is marked failed and resumed explicitly (LLM calls cost
+    money). If the worker crashes mid-run, acks_late redelivers the task and the runner continues
+    from the last LangGraph checkpoint rather than starting over."""
+    status = get_resources().research_runner.run(UUID(request_id))
+    return status.value if status else None

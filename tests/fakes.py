@@ -50,6 +50,7 @@ class RecordingDispatcher:
 
     def __init__(self, fail: bool = False) -> None:
         self.calls: list[tuple[UUID, UUID]] = []
+        self.research_calls: list[UUID] = []
         self.fail = fail
 
     def enqueue_ingestion(self, paper_id: UUID, job_id: UUID) -> str:
@@ -59,6 +60,14 @@ class RecordingDispatcher:
             raise DependencyUnavailableError("Task queue (Redis) is unavailable")
         self.calls.append((paper_id, job_id))
         return f"task-{len(self.calls)}"
+
+    def enqueue_research(self, request_id: UUID) -> str:
+        from app.core.exceptions import DependencyUnavailableError
+
+        if self.fail:
+            raise DependencyUnavailableError("Task queue (Redis) is unavailable")
+        self.research_calls.append(request_id)
+        return f"research-task-{len(self.research_calls)}"
 
     def close(self) -> None:
         pass
@@ -95,3 +104,21 @@ class FakePlanner:
         if self.error:
             raise self.error
         return self.plan
+
+
+class ScriptedStep:
+    """Fake structured LLM step: returns scripted outputs in order (the last one repeats).
+
+    An output may be an Exception (raised) or a callable taking the input dict.
+    """
+
+    def __init__(self, *outputs) -> None:  # type: ignore[no-untyped-def]
+        self.outputs = list(outputs)
+        self.inputs: list[dict] = []
+
+    def invoke(self, input: dict, config=None):  # type: ignore[no-untyped-def]  # noqa: A002
+        self.inputs.append(input)
+        out = self.outputs[min(len(self.inputs) - 1, len(self.outputs) - 1)]
+        if isinstance(out, Exception):
+            raise out
+        return out(input) if callable(out) else out

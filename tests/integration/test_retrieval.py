@@ -6,95 +6,15 @@ from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
-from qdrant_client import QdrantClient
 
 from app.core.types import RetrievalStrategy
-from app.embeddings.sparse import Bm25SparseEncoder
-from app.ingestion.chunker import chunk_id_for
 from app.retrieval.engine import RerankerUnavailableError, RetrievalConfig, RetrievalEngine
 from app.retrieval.qdrant_search import QdrantSearcher
 from app.retrieval.query_transformer import QueryPlan, QueryTransformer
 from app.retrieval.retrievers import DenseRetriever, HybridRetriever, SparseRetriever
 from app.retrieval.types import RetrievalFilters
-from app.vectorstore.qdrant_store import ChunkPoint, QdrantChunkStore
-from tests.fakes import FakeDenseEmbedder, FakePlanner, KeywordReranker
-
-PAPER_A, PAPER_B = "11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"
-COLL_X, COLL_Y = "c-x", "c-y"
-CORPUS = [
-    (
-        PAPER_A,
-        COLL_X,
-        "1 Introduction",
-        2020,
-        "Retrieval augmented generation conditions a language model on retrieved passages.",
-    ),
-    (
-        PAPER_A,
-        COLL_X,
-        "3 Method",
-        2020,
-        "We use DPR, a dense passage retriever with a BERT bi-encoder, and BM25 as a baseline.",
-    ),
-    (
-        PAPER_A,
-        COLL_X,
-        "5 Limitations",
-        2020,
-        "Limitations include retrieval errors that propagate into hallucinated answers.",
-    ),
-    (
-        PAPER_B,
-        COLL_Y,
-        "1 Introduction",
-        2024,
-        "GraphRAG builds a knowledge graph of entities and summarises graph communities.",
-    ),
-    (
-        PAPER_B,
-        COLL_Y,
-        "4 Results",
-        2024,
-        "GraphRAG improves comprehensiveness on global sensemaking questions over naive RAG.",
-    ),
-    (
-        PAPER_B,
-        COLL_Y,
-        "6 Limitations",
-        2024,
-        "Building the graph index is expensive, and evaluation relies on an LLM judge.",
-    ),
-]
-
-
-@pytest.fixture
-def corpus() -> Iterator[tuple[QdrantClient, FakeDenseEmbedder, Bm25SparseEncoder, QdrantSearcher]]:
-    client = QdrantClient(location=":memory:")
-    embedder, encoder = FakeDenseEmbedder(dimension=64), Bm25SparseEncoder()
-    store = QdrantChunkStore(client, "chunks")
-    store.ensure_collection(embedder.dimension)
-    points = []
-    for i, (paper, coll, section, year, text) in enumerate(CORPUS):
-        cid = chunk_id_for(paper, i)
-        payload = {
-            "chunk_id": cid,
-            "paper_id": paper,
-            "collection_id": coll,
-            "section": section,
-            "year": year,
-            "text": text,
-            "title": f"Paper {paper[0]}",
-            "page_start": i + 1,
-            "page_end": i + 1,
-        }
-        points.append(
-            ChunkPoint(
-                cid, embedder.embed_documents([text])[0], encoder.embed_document(text), payload
-            )
-        )
-    store.upsert(points)
-    yield client, embedder, encoder, QdrantSearcher(client, "chunks")
-    client.close()
+from tests.corpus import COLL_X, CORPUS, PAPER_A, PAPER_B
+from tests.fakes import FakePlanner, KeywordReranker
 
 
 def _texts(chunks) -> list[str]:  # type: ignore[no-untyped-def]

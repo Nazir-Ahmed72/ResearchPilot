@@ -68,8 +68,13 @@ class Settings(BaseSettings):
     llm_model: str = "openai/gpt-oss-120b"
     # Smaller, faster model for frequent lightweight steps (query transformation).
     llm_fast_model: str = "openai/gpt-oss-20b"
+    # Reasoning models (gpt-oss, qwen3) think before answering; effort trades quality for
+    # latency. Set to empty for non-reasoning models (the provider would reject the parameter).
+    llm_reasoning_effort_synthesis: Literal["low", "medium", "high"] | None = "medium"
+    llm_reasoning_effort_default: Literal["low", "medium", "high"] | None = "low"
     llm_temperature: float = Field(default=0.0, ge=0.0, le=2.0)
-    llm_max_tokens: int = Field(default=2048, gt=0)
+    # For reasoning models this budget also covers hidden reasoning tokens.
+    llm_max_tokens: int = Field(default=4096, gt=0)
     llm_timeout_seconds: float = Field(default=60.0, gt=0)
     llm_max_retries: int = Field(default=2, ge=0)
     groq_api_key: SecretStr | None = None
@@ -108,6 +113,24 @@ class Settings(BaseSettings):
     rrf_k: int = Field(default=60, gt=0)
     max_query_variants: int = Field(default=4, ge=1, le=8)
 
+    # --- Research workflow (LangGraph) --------------------------------------------------------
+    research_default_strategy: str = "hybrid_rerank"
+    research_max_retrieval_retries: int = Field(default=1, ge=0, le=3)
+    research_max_repair_attempts: int = Field(default=1, ge=0, le=3)
+    research_evidence_k_simple: int = Field(default=6, gt=0, le=30)
+    research_evidence_k_complex: int = Field(default=10, gt=0, le=30)
+    research_max_chunks_per_paper: int = Field(default=4, gt=0)
+    research_candidate_k_complex: int = Field(default=16, gt=0, le=100)
+    research_timeout_seconds: float = Field(default=300.0, gt=0)
+    # Human-in-the-loop extension point: pause before these nodes (e.g. ["synthesize"]); resume
+    # with POST /research/{id}/resume.
+    research_interrupt_before: list[str] = Field(default_factory=list)
+    # "postgres": durable checkpoints in Neon (direct URL). "memory": per-process (dev/tests).
+    research_checkpointer: Literal["postgres", "memory"] = "postgres"
+    # Optional USD prices per 1M tokens, e.g. {"openai/gpt-oss-120b": {"input": 0.15,
+    # "output": 0.6}}. Cost is reported only for models listed here (check your provider).
+    llm_pricing: dict[str, dict[str, float]] = Field(default_factory=dict)
+
     # --- Background tasks --------------------------------------------------------------------
     # "celery": separate worker process via Redis. "inline": run in the API process (dev/tests).
     task_backend: Literal["celery", "inline"] = "celery"
@@ -130,6 +153,13 @@ class Settings(BaseSettings):
     @classmethod
     def _use_psycopg_driver(cls, value: str | None) -> str | None:
         return normalise_database_url(value) if value else value
+
+    @field_validator(
+        "llm_reasoning_effort_synthesis", "llm_reasoning_effort_default", mode="before"
+    )
+    @classmethod
+    def _empty_is_none(cls, value: object) -> object:
+        return None if value == "" else value
 
     @field_validator("upload_dir", "hf_home", "temp_dir")
     @classmethod

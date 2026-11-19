@@ -237,7 +237,8 @@ def _mark_title(blocks: list[TextBlock]) -> list[TextBlock]:
         return blocks
     result = []
     for b in blocks:
-        if b in first and b.font_size == biggest:
+        # Tolerance: small-caps titles mix sizes, so lines differ by a fraction of a point.
+        if b in first and b.font_size >= biggest - 0.5:
             b = TextBlock(**{**b.__dict__, "is_title": True, "is_heading": False})
         result.append(b)
     return result

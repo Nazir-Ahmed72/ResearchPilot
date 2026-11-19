@@ -35,7 +35,7 @@ flowchart LR
 | `app/vectorstore` | Qdrant collection setup, upsert, delete-by-paper | `embeddings` |
 | `app/retrieval` | Dense, sparse, hybrid (RRF), reranking, query transformation, strategies E1–E5 ([details](retrieval_engine.md)) | `core`, `embeddings`, `llm` |
 | `app/llm` | Provider-neutral chat model factory (Groq: `gpt-oss-120b` main, `gpt-oss-20b` fast) | `core` |
-| `app/orchestration` *(planned M4)* | LangGraph state, nodes, routing, checkpointing | `retrieval`, `llm` |
+| `app/orchestration` | LangGraph state, nodes, routing, checkpointing ([details](orchestration.md)) | `retrieval`, `llm` |
 | `app/evaluation` *(planned M5)* | Retrieval metrics, Ragas, experiments E1–E5 | `retrieval`, `orchestration` |
 | `app/observability` *(planned M5)* | LangSmith configuration, trace metadata, redaction | `core` |
 | `app/services` | Use-case logic called by routes and workers | all of the above |
@@ -128,7 +128,9 @@ flowchart TD
     w -. failure .-> f[Job/Paper: failed + error_message]
 ```
 
-## 6. Research workflow (LangGraph) *(planned M4)*
+## 6. Research workflow (LangGraph)
+
+Implemented; see [orchestration.md](orchestration.md) for details.
 
 ```mermaid
 flowchart TD
@@ -176,6 +178,8 @@ or be swapped for managed equivalents via `QDRANT_LOCATION` / `REDIS_URL`.
 * Uploads: size limit, extension + MIME + magic-byte checks, stored under generated UUID names
   (no user-controlled paths), never executed.
 * Secrets: `SecretStr` settings, redaction in logs, health errors expose exception types only.
-* Prompt injection *(M4)*: retrieved text is wrapped as quoted data in prompts, system
-  instructions state that document content is untrusted, and outputs are schema-validated.
+* Prompt injection: retrieved text is wrapped in `<evidence>` blocks with tag-like content
+  neutralised, every system prompt states that evidence is untrusted data, questions are
+  delimited and treated as data, outputs are schema-validated, and citations are checked against
+  the actual evidence IDs (see [orchestration.md](orchestration.md)).
 * Request IDs from clients are accepted only if they match `[A-Za-z0-9._-]{1,128}`.

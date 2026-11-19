@@ -2,17 +2,16 @@
 
 **Intelligent research paper analysis: Advanced RAG and LangGraph orchestration.**
 
-ResearchPilot ingests academic PDFs, indexes them for hybrid (semantic + keyword) search, and,
-once the orchestration layer is complete, answers research questions with evidence-backed,
-citation-verified analyses: factual answers, cross-paper comparisons, limitations, research gaps
-and literature reviews.
+ResearchPilot ingests academic PDFs, indexes them for hybrid (semantic + keyword) search, and
+answers research questions with evidence-backed, citation-verified analyses: factual answers,
+cross-paper comparisons, limitations, research gaps and literature reviews.
 
 The project focuses on backend engineering, retrieval quality, evaluation and observability
 rather than on a UI. The FastAPI Swagger page is the interface.
 
-> **Status:** work in progress. Ingestion (M2) and the retrieval engine (M3) are complete and
-> verified against real cloud services. LangGraph orchestration, LangSmith tracing, evaluation
-> and deployment are next. See the [roadmap](#roadmap) and
+> **Status:** work in progress. Ingestion (M2), the retrieval engine (M3) and the LangGraph
+> research workflow (M4) are complete and verified against real cloud services. LangSmith
+> tracing, evaluation and deployment are next. See the [roadmap](#roadmap) and
 > [docs/DEVELOPMENT_PROGRESS.md](docs/DEVELOPMENT_PROGRESS.md). This README only describes what
 > exists; planned parts are marked as such.
 
@@ -56,18 +55,29 @@ an explicit multi-step research workflow, citation verification and measurable e
 * Five switchable strategies (E1–E5) for experiments, metadata filters (collection, paper,
   section, year), per-stage scores and timings.
 
+**Research workflow (LangGraph)** ([docs](docs/orchestration.md))
+* Eight nodes: query understanding, planning, retrieval, reranking, evidence evaluation,
+  synthesis, citation verification and response generation.
+* Conditional routing by complexity, intent, evidence sufficiency and verification results;
+  bounded retrieval retries and repair passes.
+* Five analysis modes: factual, comparison, limitations (reported vs inferred), research gaps
+  (hypotheses labelled, scoped to the collection) and literature review.
+* Citation verification: fabricated IDs and uncited claims caught by code, support judged by an
+  LLM, one repair pass, unsupported statements removed and listed.
+* Durable checkpoints in PostgreSQL: resume after failure or worker crash without redoing work;
+  optional human-in-the-loop pause before any node.
+* Background execution with progress (`current_node`), per-node latency, token usage and
+  verification metrics stored per request.
+* Prompt-injection defences for retrieved text.
+
 **Platform**
 * FastAPI with versioned routes, Pydantic schemas, one consistent error format, request IDs.
 * Structured JSON logging with secret redaction.
 * SQLAlchemy 2.0 + Alembic migrations on Neon serverless PostgreSQL.
-* 187 automated tests that need no network, plus opt-in suites for real models, live LLM calls
+* 241 automated tests that need no network, plus opt-in suites for real models, live LLM calls
   and PostgreSQL.
 
 ### Planned
-* LangGraph research workflow: query understanding, planning, retrieval, reranking, evidence
-  evaluation, synthesis, citation verification and response generation, with conditional
-  routing, bounded retries and checkpointing (M4).
-* Research endpoints with background execution and status tracking (M4).
 * LangSmith tracing, evaluation datasets, Ragas and retrieval metrics, experiment reports (M5).
 * Docker, Docker Compose and GitHub Actions CI (M6).
 
@@ -82,7 +92,8 @@ flowchart LR
     worker --> pg
     worker --> qdrant[(Qdrant<br/>dense + BM25 vectors)]
     api --> qdrant
-    api -->|query transformation| groq[Groq LLM]
+    worker -->|LangGraph research workflow| groq[Groq LLM]
+    worker -->|checkpoints| pg
     api -. planned .-> langsmith[LangSmith]
 ```
 
@@ -109,6 +120,7 @@ A **modular monolith**: one codebase run as two processes (API and worker) that 
 | `app/vectorstore` | Qdrant collection management |
 | `app/retrieval` | Retrievers, fusion, reranking, query transformation, strategies |
 | `app/llm` | Provider-neutral chat model factory |
+| `app/orchestration` | LangGraph state, nodes, routing, prompts, checkpointing |
 | `app/services` | Use-case logic called by the API |
 | `app/workers` | Celery app, tasks and dispatchers |
 | `app/api` | Routes, schemas, dependencies |
@@ -127,7 +139,7 @@ decisions.
 | PDF | PyMuPDF |
 | Embeddings / reranking | Sentence Transformers: `BAAI/bge-small-en-v1.5`, `BAAI/bge-reranker-base` |
 | LLM | LangChain + Groq (`openai/gpt-oss-120b`, `openai/gpt-oss-20b`) |
-| Orchestration (planned) | LangGraph |
+| Orchestration | LangGraph (PostgreSQL checkpointer) |
 | Observability (planned) | LangSmith |
 | Evaluation (planned) | Ragas, custom retrieval metrics |
 | Quality | pytest, Ruff |
@@ -188,8 +200,8 @@ alembic upgrade head
 # Terminal 1: API (http://127.0.0.1:8000/docs)
 uvicorn app.main:app --reload
 
-# Terminal 2: ingestion worker (on Windows --pool=solo is required)
-celery -A app.workers.celery_app worker -Q ingestion --pool=solo --loglevel=INFO \
+# Terminal 2: worker for ingestion and research (on Windows --pool=solo is required)
+celery -A app.workers.celery_app worker -Q ingestion,research --pool=solo --loglevel=INFO \
   --without-gossip --without-mingle --without-heartbeat
 ```
 
@@ -210,8 +222,11 @@ Interactive docs at `/docs` (Swagger) and `/redoc`.
 | `DELETE` | `/api/v1/papers/{id}` | Delete a paper, its vectors and its file |
 | `POST` | `/api/v1/papers/{id}/reingest` | Re-run ingestion |
 | `POST` | `/api/v1/retrieval/search` | Search with a chosen strategy (E1–E5) and filters |
+| `POST` | `/api/v1/research/query` | Ask a research question; returns 202 and a status URL |
+| `GET` | `/api/v1/research/{id}` | Status, live progress (`current_node`) and the verified answer |
+| `POST` | `/api/v1/research/{id}/resume` | Resume a failed or paused run from its checkpoint |
 
-Planned: `/api/v1/research/*` (M4) and `/api/v1/evaluations/*` (M5).
+Planned: `/api/v1/evaluations/*` (M5).
 
 Example:
 
@@ -221,6 +236,11 @@ curl -X POST http://127.0.0.1:8000/api/v1/papers/upload \
 
 curl -X POST http://127.0.0.1:8000/api/v1/retrieval/search -H "Content-Type: application/json" \
   -d '{"query": "Compare RAG-Sequence and RAG-Token", "strategy": "hybrid_qt_rerank", "top_k": 5}'
+
+curl -X POST http://127.0.0.1:8000/api/v1/research/query -H "Content-Type: application/json" \
+  -d '{"question": "Compare traditional RAG and GraphRAG approaches", "collection": "rag-papers"}'
+# -> {"request_id": "...", "status": "queued", "status_url": "/api/v1/research/..."}
+curl http://127.0.0.1:8000/api/v1/research/<request_id>
 ```
 
 Every error has the same shape and carries the request ID that also appears in the logs:
@@ -245,10 +265,7 @@ Compare them on your own papers:
 python scripts/compare_retrieval.py "How did RAG perform on FEVER?" --top-k 3
 ```
 
-## LangGraph workflow (planned, M4)
-
-The research workflow will be a deterministic LangGraph state machine with LLM decisions only
-where they help:
+## LangGraph workflow
 
 ```mermaid
 flowchart TD
@@ -259,8 +276,32 @@ flowchart TD
     RR -->|complex| E[evaluate evidence]
     E -->|insufficient, retries left| P
     E -->|sufficient or retries exhausted| S
-    S --> C[verify citations] --> G[generate response]
+    S --> C[verify citations]
+    C -->|unsupported claims, one repair| S
+    C --> G[respond]
 ```
+
+Example output (live run, abridged):
+
+```markdown
+## Answer
+Self-RAG highlights that standard retrieval-augmented generation suffers from indiscriminate
+fixed-size retrieval, irrelevant passages, ... and insufficient attribution.
+
+## Reported limitations
+- Standard RAG retrieves a fixed number of passages indiscriminately, even when retrieval is
+  unnecessary or passages are irrelevant ... [1][2][3]
+
+## Additional observations
+- *Inferred:* These limitations suggest a need for adaptive, on-demand retrieval ... [2][3]
+
+## References
+[1] SELF-RAG: ... (2023), ABSTRACT, p. 1
+[2] SELF-RAG: ... (2023), 1 INTRODUCTION, p. 1
+```
+
+Routing rules, failure handling and live measurements are in
+[docs/orchestration.md](docs/orchestration.md).
 
 ## Observability
 
@@ -287,13 +328,15 @@ observations (latency, reranker calibration, a known retrieval miss) are in
 ## Testing
 
 ```bash
-pytest                                  # 187 tests; no network or models needed
+pytest                                  # 241 tests; no network or models needed
 ruff check . && ruff format --check .
 
 # Opt-in suites
 RUN_MODEL_TESTS=1 pytest tests/integration/test_real_models.py    # real BGE models
 RUN_LIVE_TESTS=1  pytest tests/integration/test_live_groq.py       # real Groq calls
-TEST_DATABASE_URL=<neon direct url> pytest tests/integration/test_migrations.py
+RUN_LIVE_TESTS=1  pytest tests/integration/test_live_checkpoint.py # Neon checkpoint resume
+# Destructive (drops all tables); refuses to run unless the database is EMPTY:
+TEST_DATABASE_URL=<direct url of an empty Neon branch> pytest tests/integration/test_migrations.py
 ```
 
 (On Windows use `set RUN_MODEL_TESTS=1 && pytest ...`.)
@@ -311,14 +354,15 @@ app/
   embeddings/     dense (BGE) and sparse (BM25) encoders
   ingestion/      validation, pdf_loader, text_cleaner, chunker, storage, pipeline
   llm/            chat model factory
+  orchestration/  LangGraph state, nodes/, routing, prompts, schemas, checkpoint, graph
   retrieval/      retrievers, fusion, reranker, query_transformer, engine
-  services/       health, papers
+  services/       health, papers, research
   vectorstore/    Qdrant collection management
   workers/        Celery config, tasks, dispatchers
 migrations/       Alembic
 scripts/          compare_retrieval.py
 tests/            unit/, integration/, fakes, PDF factory
-docs/             architecture, ingestion, retrieval, progress log
+docs/             architecture, ingestion, retrieval, orchestration, progress log
 ```
 
 ## Known limitations
@@ -327,7 +371,13 @@ docs/             architecture, ingestion, retrieval, progress log
 * Equations are extracted as fragmented text and tables are flattened, so math-heavy chunks
   retrieve poorly.
 * Heading detection is heuristic; authors come only from PDF metadata.
-* Cross-encoder reranking takes ~7.5 s per query on a laptop CPU.
+* Cross-encoder reranking takes ~7.5 s per query on a laptop CPU; a research run takes
+  20–90 s.
+* Groq's free tier allows `gpt-oss-120b` only 8k tokens/minute, so back-to-back research runs
+  are throttled.
+* Multi-hop questions phrased as one sentence can be classified "simple" and skip the
+  evidence-evaluation step.
+* No streaming; poll `GET /research/{id}` for progress.
 * Reranker scores are not calibrated probabilities.
 * Uploaded PDFs are stored on local disk shared by the API and worker; multi-host deployment
   needs object storage.
@@ -341,8 +391,8 @@ docs/             architecture, ingestion, retrieval, progress log
 | M1 | Foundation: config, logging, errors, DB models, migrations, health | ✅ |
 | M2 | Ingestion pipeline, background worker, paper endpoints | ✅ |
 | M3 | Retrieval engine: dense, sparse, hybrid, rerank, query transformation | ✅ |
-| M4 | LangGraph orchestration, citation verification, research endpoints | ⏳ next |
-| M5 | LangSmith tracing, evaluation framework, experiments E1–E5 | planned |
+| M4 | LangGraph orchestration, citation verification, research endpoints | ✅ |
+| M5 | LangSmith tracing, evaluation framework, experiments E1–E5 | ⏳ next |
 | M6 | Docker, Docker Compose, GitHub Actions CI | planned |
 | M7 | Final documentation and validation | planned |
 

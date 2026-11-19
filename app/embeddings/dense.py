@@ -99,7 +99,9 @@ class SentenceTransformerEmbedder:
         return int(self.model.max_seq_length)
 
     def count_tokens(self, text: str) -> int:
-        return len(self.model.tokenizer.encode(text, add_special_tokens=False))
+        # verbose=False: counting a long paragraph (before it is split) is not an error.
+        ids = self.model.tokenizer(text, add_special_tokens=False, verbose=False)["input_ids"]
+        return len(ids)
 
     def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
         if not texts:

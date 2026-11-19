@@ -79,10 +79,10 @@ def chunk_payload(paper: Paper, doc: ExtractedDocument, chunk: Chunk) -> dict[st
         "page_start": chunk.page_start,
         "page_end": chunk.page_end,
         "token_count": chunk.token_count,
-        "title": paper.title or meta.title,
-        "authors": paper.authors or meta.authors,
-        "year": paper.publication_year or meta.year,
-        "doi": paper.doi or meta.doi,
+        "title": meta.title or paper.title,
+        "authors": meta.authors or paper.authors,
+        "year": meta.year or paper.publication_year,
+        "doi": meta.doi or paper.doi,
         "source": paper.original_filename,
     }
 
@@ -145,10 +145,12 @@ class IngestionPipeline:
             if paper is None or job is None or paper.status == PaperStatus.DELETING:
                 return False  # deleted while we were working; caller cleans up vectors
             meta = doc.metadata
-            paper.title = paper.title or meta.title
-            paper.authors = paper.authors or meta.authors
-            paper.publication_year = paper.publication_year or meta.year
-            paper.doi = paper.doi or meta.doi
+            # Metadata is extraction-owned (not user-editable), so a re-ingestion with improved
+            # extraction refreshes it; previous values are kept only when nothing was found.
+            paper.title = meta.title or paper.title
+            paper.authors = meta.authors or paper.authors
+            paper.publication_year = meta.year or paper.publication_year
+            paper.doi = meta.doi or paper.doi
             paper.page_count = doc.page_count
             paper.chunk_count = len(chunks)
             paper.pdf_metadata = {

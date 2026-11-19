@@ -2,7 +2,7 @@
 
 Start a worker (Windows needs the single-process ``solo`` pool)::
 
-    celery -A app.workers.celery_app worker -Q ingestion --pool=solo --loglevel=INFO \
+    celery -A app.workers.celery_app worker -Q ingestion,research --pool=solo --loglevel=INFO \
         --without-gossip --without-mingle --without-heartbeat
 
 The flags and settings below minimise idle Redis traffic, which matters on Upstash's metered
@@ -17,7 +17,7 @@ import ssl
 from celery import Celery
 
 from app.core.config import Settings
-from app.workers.dispatch import INGESTION_QUEUE
+from app.workers.dispatch import INGESTION_QUEUE, RESEARCH_QUEUE
 
 
 def create_celery_app(settings: Settings) -> Celery:
@@ -28,6 +28,10 @@ def create_celery_app(settings: Settings) -> Celery:
         task_ignore_result=True,
         result_backend=None,
         task_default_queue=INGESTION_QUEUE,
+        task_routes={
+            "researchpilot.ingest_paper": {"queue": INGESTION_QUEUE},
+            "researchpilot.run_research": {"queue": RESEARCH_QUEUE},
+        },
         # Reliability: acknowledge only after the task finishes, so a crashed worker's task is
         # redelivered. Safe because the pipeline is idempotent.
         task_acks_late=True,

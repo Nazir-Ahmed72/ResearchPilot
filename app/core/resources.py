@@ -12,6 +12,8 @@ import logging
 from dataclasses import dataclass, field
 from functools import cached_property
 
+from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.graph.state import CompiledStateGraph
 from qdrant_client import QdrantClient
 from redis import Redis
 from sqlalchemy import Engine
@@ -23,6 +25,13 @@ from app.embeddings.dense import DenseEmbedder, SentenceTransformerEmbedder
 from app.embeddings.sparse import Bm25SparseEncoder
 from app.ingestion.pipeline import IngestionConfig, IngestionPipeline
 from app.ingestion.storage import LocalFileStorage
+from app.orchestration.dependencies import (
+    ResearchConfig,
+    ResearchDependencies,
+    StructuredStep,
+    llm_steps,
+)
+from app.orchestration.graph import build_research_graph
 from app.retrieval.engine import RetrievalConfig, RetrievalEngine
 from app.retrieval.qdrant_search import QdrantSearcher
 from app.retrieval.query_transformer import QueryPlanner, QueryTransformer, create_query_planner
@@ -57,6 +66,9 @@ class Resources:
     reranker: Reranker | None = None
     _dispatcher: TaskDispatcher | None = None
     _query_planner: QueryPlanner | None = None
+    _llm_steps: dict[str, StructuredStep] | None = None
+    _checkpointer: BaseCheckpointSaver | None = None
+    _closers: list = field(default_factory=list)
 
     @classmethod
     def from_settings(
@@ -68,6 +80,8 @@ class Resources:
         qdrant: QdrantClient | None = None,
         reranker: Reranker | None = None,
         query_planner: QueryPlanner | None = None,
+        llm_steps: dict[str, StructuredStep] | None = None,
+        checkpointer: BaseCheckpointSaver | None = None,
     ) -> Resources:
         engine = create_db_engine(settings)
         timeout = settings.health_check_timeout_seconds
@@ -96,6 +110,8 @@ class Resources:
             ),
             _dispatcher=dispatcher,
             _query_planner=query_planner,
+            _llm_steps=llm_steps,
+            _checkpointer=checkpointer,
         )
 
     @cached_property
@@ -153,10 +169,69 @@ class Resources:
         )
 
     @property
+    def checkpointer(self) -> BaseCheckpointSaver:
+        if self._checkpointer is None:
+            from app.orchestration.checkpoint import create_checkpointer
+
+            self._checkpointer, close = create_checkpointer(self.settings)
+            self._closers.append(close)
+        return self._checkpointer
+
+    @cached_property
+    def research_graph(self) -> CompiledStateGraph:
+        """Built on first use: needs the LLM (GROQ_API_KEY) and, in production, Neon."""
+        steps = self._llm_steps
+        if steps is None:
+            from app.llm.factory import create_chat_model
+
+            steps = llm_steps(
+                create_chat_model(self.settings, "main"),
+                create_chat_model(self.settings, "fast"),
+                create_chat_model(
+                    self.settings,
+                    "main",
+                    reasoning_effort=self.settings.llm_reasoning_effort_synthesis,
+                ),
+            )
+        s = self.settings
+        deps = ResearchDependencies(
+            engine=self.retrieval_engine,
+            transformer=self.query_transformer,
+            analyzer=steps.get("analyzer"),
+            evaluator=steps.get("evaluator"),
+            synthesizer=steps["synthesizer"],
+            verifier=steps.get("verifier"),
+            config=ResearchConfig(
+                max_retrieval_retries=s.research_max_retrieval_retries,
+                max_repair_attempts=s.research_max_repair_attempts,
+                evidence_k_simple=s.research_evidence_k_simple,
+                evidence_k_complex=s.research_evidence_k_complex,
+                max_chunks_per_paper=s.research_max_chunks_per_paper,
+                candidate_k_simple=s.rerank_candidate_k,
+                candidate_k_complex=s.research_candidate_k_complex,
+                timeout_seconds=s.research_timeout_seconds,
+            ),
+        )
+        return build_research_graph(
+            deps, checkpointer=self.checkpointer, interrupt_before=s.research_interrupt_before
+        )
+
+    @cached_property
+    def research_runner(self):  # type: ignore[no-untyped-def]
+        from app.services.research import ResearchRunner
+
+        return ResearchRunner(
+            session_factory=self.session_factory, graph=self.research_graph, settings=self.settings
+        )
+
+    @property
     def dispatcher(self) -> TaskDispatcher:
         if self._dispatcher is None:
             if self.settings.task_backend == "inline":
-                self._dispatcher = InlineDispatcher(self.ingestion_pipeline)
+                # The runner is resolved lazily so a missing LLM key fails the run, not startup.
+                self._dispatcher = InlineDispatcher(
+                    self.ingestion_pipeline, lambda rid: self.research_runner.run(rid)
+                )
             else:
                 from app.workers.celery_config import create_celery_app
 
@@ -164,7 +239,7 @@ class Resources:
         return self._dispatcher
 
     def close(self) -> None:
-        closers = [self.redis.close, self.qdrant.close, self.engine.dispose]
+        closers = [self.redis.close, self.qdrant.close, self.engine.dispose, *self._closers]
         if self._dispatcher is not None:
             closers.insert(0, self._dispatcher.close)
         for closer in closers:

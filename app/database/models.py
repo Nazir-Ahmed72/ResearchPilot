@@ -91,6 +91,7 @@ class JobStatus(str, enum.Enum):
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
+    INTERRUPTED = "interrupted"  # research run paused for human review (resumable)
 
 
 # --- Tables -----------------------------------------------------------------------------------
@@ -179,6 +180,8 @@ class ResearchRequest(TimestampMixin, Base):
     )
     # LangGraph checkpoint thread; equals the request id by default but kept explicit.
     thread_id: Mapped[str | None] = mapped_column(String(255), index=True)
+    # Graph node currently executing (progress for status polling).
+    current_node: Mapped[str | None] = mapped_column(String(64))
     options: Mapped[dict[str, Any]] = mapped_column(default=dict, nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

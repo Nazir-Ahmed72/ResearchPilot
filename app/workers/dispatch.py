@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import TYPE_CHECKING, Protocol
 from uuid import UUID
@@ -23,11 +24,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 INGEST_TASK_NAME = "researchpilot.ingest_paper"
+RESEARCH_TASK_NAME = "researchpilot.run_research"
 INGESTION_QUEUE = "ingestion"
+RESEARCH_QUEUE = "research"
 
 
 class TaskDispatcher(Protocol):
     def enqueue_ingestion(self, paper_id: UUID, job_id: UUID) -> str: ...
+
+    def enqueue_research(self, request_id: UUID) -> str: ...
 
     def close(self) -> None: ...
 
@@ -36,12 +41,12 @@ class CeleryDispatcher:
     def __init__(self, app: Celery) -> None:
         self.app = app
 
-    def enqueue_ingestion(self, paper_id: UUID, job_id: UUID) -> str:
+    def _send(self, name: str, args: list[str], queue: str) -> str:
         try:
             result = self.app.send_task(
-                INGEST_TASK_NAME,
-                args=[str(paper_id), str(job_id)],
-                queue=INGESTION_QUEUE,
+                name,
+                args=args,
+                queue=queue,
                 retry=True,
                 retry_policy={"max_retries": 2, "interval_start": 0.5, "interval_step": 1},
             )
@@ -49,15 +54,34 @@ class CeleryDispatcher:
             raise DependencyUnavailableError("Task queue (Redis) is unavailable") from exc
         return str(result.id)
 
+    def enqueue_ingestion(self, paper_id: UUID, job_id: UUID) -> str:
+        return self._send(INGEST_TASK_NAME, [str(paper_id), str(job_id)], INGESTION_QUEUE)
+
+    def enqueue_research(self, request_id: UUID) -> str:
+        return self._send(RESEARCH_TASK_NAME, [str(request_id)], RESEARCH_QUEUE)
+
     def close(self) -> None:
         self.app.close()
 
 
 class InlineDispatcher:
-    def __init__(self, pipeline: IngestionPipeline, max_workers: int = 1) -> None:
+    def __init__(
+        self,
+        pipeline: IngestionPipeline,
+        research_runner: Callable[[UUID], object] | None = None,
+        max_workers: int = 1,
+    ) -> None:
         self.pipeline = pipeline
-        self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="ingest")
+        self.research_runner = research_runner
+        self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="task")
         self.futures: dict[str, Future[object]] = {}
+
+    def enqueue_research(self, request_id: UUID) -> str:
+        if self.research_runner is None:
+            raise DependencyUnavailableError("Research execution is not configured")
+        task_id = f"inline-{uuid.uuid4().hex}"
+        self.futures[task_id] = self._executor.submit(self.research_runner, request_id)
+        return task_id
 
     def enqueue_ingestion(self, paper_id: UUID, job_id: UUID) -> str:
         task_id = f"inline-{uuid.uuid4().hex}"

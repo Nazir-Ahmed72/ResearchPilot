@@ -36,7 +36,30 @@ def database_url(request: pytest.FixtureRequest, tmp_path: Path) -> str:
     url = os.environ.get("TEST_DATABASE_URL")
     if not url:
         pytest.skip("TEST_DATABASE_URL not set; PostgreSQL migration test skipped")
-    return normalise_database_url(url)
+    url = normalise_database_url(url)
+    # SAFETY: this test ends with `downgrade base`, which drops every application table. Only
+    # run it against an EMPTY database (e.g. a fresh Neon branch), never against real data.
+    engine = create_engine(url)
+    try:
+        existing = set(inspect(engine).get_table_names()) - {"alembic_version"}
+    finally:
+        engine.dispose()
+    if existing:
+        pytest.skip(
+            f"TEST_DATABASE_URL database is not empty ({len(existing)} tables); refusing to run "
+            "a destructive migration test. Point it at an empty Neon branch."
+        )
+    return url
+
+
+def _is_external(diff_entry: tuple) -> bool:  # type: ignore[type-arg]
+    table = diff_entry[1] if len(diff_entry) > 1 else None
+    return getattr(table, "name", None) in {
+        "checkpoints",
+        "checkpoint_blobs",
+        "checkpoint_writes",
+        "checkpoint_migrations",
+    }
 
 
 def test_upgrade_matches_models_and_downgrade_cleans_up(database_url: str) -> None:
@@ -49,6 +72,7 @@ def test_upgrade_matches_models_and_downgrade_cleans_up(database_url: str) -> No
             diff = compare_metadata(
                 MigrationContext.configure(conn, opts={"compare_type": True}), Base.metadata
             )
+        diff = [d for d in diff if not _is_external(d)]
         assert diff == [], f"Models and migrations are out of sync: {diff}"
         assert set(Base.metadata.tables) <= set(inspect(engine).get_table_names())
 

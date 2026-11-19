@@ -65,15 +65,25 @@ class HybridRetriever:
         queries: Sequence[str],
         candidate_k: int,
         filters: RetrievalFilters | None = None,
+        *,
+        use_dense: bool = True,
+        use_sparse: bool = True,
     ) -> list[RetrievedChunk]:
+        """Fuse results of every (query, retriever) pair. With one retriever enabled this is
+        multi-query dense-only or sparse-only search, also fused with RRF."""
+        if not (use_dense or use_sparse):
+            raise ValueError("enable at least one of dense / sparse")
         requests: list[SearchRequest] = []
         weights: list[float] = []
         for query in queries:
-            requests.append(SearchRequest("dense", self.embedder.embed_query(query), candidate_k))
-            weights.append(self.dense_weight)
-            sparse = self.encoder.embed_query(query)
-            if sparse.indices:
-                requests.append(SearchRequest("sparse", sparse, candidate_k))
-                weights.append(self.sparse_weight)
+            if use_dense:
+                vector = self.embedder.embed_query(query)
+                requests.append(SearchRequest("dense", vector, candidate_k))
+                weights.append(self.dense_weight)
+            if use_sparse:
+                sparse = self.encoder.embed_query(query)
+                if sparse.indices:
+                    requests.append(SearchRequest("sparse", sparse, candidate_k))
+                    weights.append(self.sparse_weight)
         ranked_lists = self.searcher.search(requests, filters)
         return reciprocal_rank_fusion(ranked_lists, k=self.rrf_k, weights=weights)
