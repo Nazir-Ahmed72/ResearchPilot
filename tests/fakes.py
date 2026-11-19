@@ -51,6 +51,7 @@ class RecordingDispatcher:
     def __init__(self, fail: bool = False) -> None:
         self.calls: list[tuple[UUID, UUID]] = []
         self.research_calls: list[UUID] = []
+        self.evaluation_calls: list[UUID] = []
         self.fail = fail
 
     def enqueue_ingestion(self, paper_id: UUID, job_id: UUID) -> str:
@@ -68,6 +69,14 @@ class RecordingDispatcher:
             raise DependencyUnavailableError("Task queue (Redis) is unavailable")
         self.research_calls.append(request_id)
         return f"research-task-{len(self.research_calls)}"
+
+    def enqueue_evaluation(self, batch_id: UUID) -> str:
+        from app.core.exceptions import DependencyUnavailableError
+
+        if self.fail:
+            raise DependencyUnavailableError("Task queue (Redis) is unavailable")
+        self.evaluation_calls.append(batch_id)
+        return f"evaluation-task-{len(self.evaluation_calls)}"
 
     def close(self) -> None:
         pass

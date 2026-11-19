@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from langchain_core.runnables import RunnableConfig
+from langchain_core.runnables import RunnableConfig, RunnableLambda
 
 from app.core.types import RetrievalStrategy
 from app.orchestration.dependencies import ResearchDependencies
@@ -61,12 +61,19 @@ def retrieve(
     else:
         k = cfg.evidence_k_complex if _is_complex(state) else cfg.evidence_k_simple
     filters = RetrievalFilters(**{**(state.get("filters") or {})})
-    fused = deps.engine.hybrid.search(
-        queries,
-        max(k, deps.engine.config.candidate_k),
-        filters,
-        use_dense=strategy != RetrievalStrategy.SPARSE,
-        use_sparse=strategy != RetrievalStrategy.DENSE,
+
+    def search(_: dict[str, Any]) -> list[RetrievedChunk]:
+        return deps.engine.hybrid.search(
+            queries,
+            max(k, deps.engine.config.candidate_k),
+            filters,
+            use_dense=strategy != RetrievalStrategy.SPARSE,
+            use_sparse=strategy != RetrievalStrategy.DENSE,
+        )
+
+    # A named child run, so traces show queries in and chunk ids/scores out.
+    fused = RunnableLambda(search, name="hybrid_search").invoke(
+        {"queries": queries, "strategy": strategy.value, "k": k}, config
     )
     cross_paper = (state.get("analysis") or {}).get("requires_cross_paper", False)
     if cross_paper:  # noqa: SIM108 - kept as a block for the explanation below
@@ -135,12 +142,20 @@ def rerank(
         # Earlier evidence is re-scored too, so all items share one comparable scale.
         pool = [_from_evidence(e) for e in previous + candidates]
         unique = list({c.chunk_id: c for c in pool}.values())
-        ranked = [
-            to_evidence(c)
-            for c in cross_encoder_rerank(
-                deps.engine.reranker, state["question"], unique, len(unique)
-            )
-        ]
+        reranker = deps.engine.reranker
+
+        def score(_: dict[str, Any]) -> list[RetrievedChunk]:
+            return cross_encoder_rerank(reranker, state["question"], unique, len(unique))
+
+        reranked = RunnableLambda(score, name="cross_encoder_rerank").invoke(
+            {
+                "question": state["question"],
+                "candidates": len(unique),
+                "model": getattr(reranker, "model_name", "unknown"),
+            },
+            config,
+        )
+        ranked = [to_evidence(c) for c in reranked]
     else:
         ranked = sorted(previous + candidates, key=lambda e: -e["score"])
 

@@ -1,0 +1,127 @@
+[
+  {
+    "question_id": "q01",
+    "label_index": 0,
+    "paper": "rag",
+    "contains": [
+      "based on DPR",
+      "bi-encoder"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      3
+    ]
+  },
+  {
+    "question_id": "q05",
+    "label_index": 0,
+    "paper": "graphrag",
+    "contains": [
+      "Leiden community detection",
+      "hierarchical"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      5
+    ]
+  },
+  {
+    "question_id": "q09",
+    "label_index": 0,
+    "paper": "rag",
+    "contains": [
+      "uses the same retrieved document"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      3
+    ]
+  },
+  {
+    "question_id": "q09",
+    "label_index": 1,
+    "paper": "rag",
+    "contains": [
+      "different latent document for each target token"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      3
+    ]
+  },
+  {
+    "question_id": "q12",
+    "label_index": 0,
+    "paper": "rag",
+    "contains": [
+      "contain answers to TriviaQA"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      3
+    ]
+  },
+  {
+    "question_id": "q12",
+    "label_index": 1,
+    "paper": "dpr",
+    "contains": [
+      "In-batch negatives"
+    ],
+    "matching_chunks": 2,
+    "pages": [
+      3
+    ]
+  },
+  {
+    "question_id": "q14",
+    "label_index": 0,
+    "paper": "selfrag",
+    "contains": [
+      "indiscriminately retrieving and incorporating a fixed number"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      1
+    ]
+  },
+  {
+    "question_id": "q14",
+    "label_index": 1,
+    "paper": "selfrag",
+    "contains": [
+      "not guaranteed to be consistent"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      1
+    ]
+  },
+  {
+    "question_id": "q17",
+    "label_index": 0,
+    "paper": "graphrag",
+    "contains": [
+      "Comprehensiveness. How much detail"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      7
+    ]
+  },
+  {
+    "question_id": "q17",
+    "label_index": 1,
+    "paper": "graphrag",
+    "contains": [
+      "Podcast transcripts",
+      "News articles",
+      "1 million tokens|million tokens"
+    ],
+    "matching_chunks": 2,
+    "pages": [
+      8,
+      11
+    ]
+  }
+]

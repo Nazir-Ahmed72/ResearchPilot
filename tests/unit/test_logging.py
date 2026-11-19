@@ -75,3 +75,20 @@ def test_key_value_secrets_are_redacted(text: str) -> None:
 def test_ordinary_text_is_untouched() -> None:
     text = "Tokenization of 5 passwords-free documents; secretary notes"
     assert redact(text) == text
+
+
+def test_token_counters_are_not_mistaken_for_secrets() -> None:
+    data = {
+        "input_tokens": 5,
+        "max_tokens": 9,
+        "total_tokens": 3,
+        "access_token": "x",
+        "api_key": "y",
+        "Authorization": "Bearer z",
+        "groq_api_key": "k",
+        "secret": "s",
+    }
+    out = redact(data)
+    assert out["input_tokens"] == 5 and out["max_tokens"] == 9 and out["total_tokens"] == 3
+    for key in ("access_token", "api_key", "Authorization", "groq_api_key", "secret"):
+        assert out[key] == REDACTED

@@ -1,0 +1,157 @@
+{
+  "name": "rag_papers_v1",
+  "description": "20 questions over four RAG papers (RAG 2005.11401, DPR 2004.04906, GraphRAG 2404.16130, Self-RAG 2310.11511). Evidence labels were written from the indexed chunk text and are validated against the collection before every run.",
+  "papers": {
+    "rag": {"title_contains": "Retrieval-Augmented Generation for Knowledge-Intensive", "arxiv": "2005.11401"},
+    "dpr": {"title_contains": "Dense Passage Retrieval for Open-Domain", "arxiv": "2004.04906"},
+    "graphrag": {"title_contains": "GraphRAG Approach to Query-Focused", "arxiv": "2404.16130"},
+    "selfrag": {"title_contains": "SELF-RAG", "arxiv": "2310.11511"}
+  },
+  "questions": [
+    {
+      "id": "q01", "category": "simple_factual",
+      "question": "Which retriever does the RAG model use?",
+      "reference_answer": "RAG's retriever is based on DPR (Dense Passage Retrieval), a bi-encoder whose query and document encoders are both BERT-base models.",
+      "evidence": [{"paper": "rag", "contains": ["based on DPR", "bi-encoder"]}]
+    },
+    {
+      "id": "q02", "category": "simple_factual",
+      "question": "What generator model does RAG use, and how many parameters does it have?",
+      "reference_answer": "RAG uses BART-large, a pre-trained seq2seq transformer with 400M parameters, as its generator.",
+      "evidence": [{"paper": "rag", "contains": ["BART-large", "400M parameters"]}]
+    },
+    {
+      "id": "q03", "category": "simple_factual",
+      "question": "What document index does RAG retrieve from?",
+      "reference_answer": "A December 2018 Wikipedia dump split into disjoint 100-word chunks (21M documents), embedded with the DPR document encoder and stored in a FAISS MIPS index with HNSW approximation.",
+      "evidence": [{"paper": "rag", "contains": ["21M documents", "FAISS"]}]
+    },
+    {
+      "id": "q04", "category": "simple_factual",
+      "question": "How much does DPR improve over BM25 in top-20 passage retrieval accuracy?",
+      "reference_answer": "DPR outperforms a strong Lucene-BM25 system by 9%-19% absolute in top-20 passage retrieval accuracy.",
+      "evidence": [{"paper": "dpr", "contains": ["9%-19%"]}]
+    },
+    {
+      "id": "q05", "category": "simple_factual",
+      "question": "Which community detection algorithm does GraphRAG use to build its graph communities?",
+      "reference_answer": "GraphRAG uses Leiden community detection, applied hierarchically to recursively find sub-communities until leaf communities cannot be partitioned further.",
+      "evidence": [{"paper": "graphrag", "contains": ["Leiden community detection", "hierarchical"]}]
+    },
+    {
+      "id": "q06", "category": "simple_factual",
+      "question": "What are reflection tokens in Self-RAG?",
+      "reference_answer": "Special tokens the language model generates alongside its output; they are categorized into retrieval tokens, signalling whether retrieval is needed, and critique tokens, judging the quality of the generation.",
+      "evidence": [{"paper": "selfrag", "contains": ["reflection tokens", "retrieval and critique tokens"]}]
+    },
+    {
+      "id": "q07", "category": "simple_factual",
+      "question": "What is index hot-swapping in RAG?",
+      "reference_answer": "Because RAG's knowledge lives in a non-parametric index, knowledge can be updated at test time by replacing the document index (e.g. swapping a 2016 Wikipedia index for a 2018 one) without retraining, unlike parametric-only models such as T5 or BART.",
+      "evidence": [{"paper": "rag", "contains": ["hot-swapping"]}]
+    },
+    {
+      "id": "q08", "category": "simple_factual",
+      "question": "How did RAG perform on FEVER fact verification?",
+      "reference_answer": "For 3-way FEVER classification RAG scores within 4.3% of state-of-the-art pipeline models, which use domain-specific architectures and intermediate retrieval supervision that RAG does not need.",
+      "evidence": [{"paper": "rag", "contains": ["FEVER", "4.3%"]}]
+    },
+    {
+      "id": "q09", "category": "comparison",
+      "question": "What is the difference between RAG-Sequence and RAG-Token?",
+      "reference_answer": "RAG-Sequence uses the same retrieved document to generate the whole output sequence, marginalizing over the top-K documents per sequence; RAG-Token can use a different latent document for each generated token, so the generator can draw on several documents within one answer.",
+      "evidence": [
+        {"paper": "rag", "contains": ["uses the same retrieved document"]},
+        {"paper": "rag", "contains": ["different latent document for each target token"]}
+      ]
+    },
+    {
+      "id": "q10", "category": "comparison",
+      "question": "Compare how RAG and Self-RAG decide when to retrieve passages.",
+      "reference_answer": "RAG always retrieves the top-K documents with its retriever for every input. Self-RAG trains the model to retrieve adaptively, on demand, signalled by reflection tokens, and criticizes approaches that retrieve a fixed number of passages indiscriminately.",
+      "evidence": [
+        {"paper": "rag", "contains": ["top K documents are retrieved"]},
+        {"paper": "selfrag", "contains": ["adaptively retrieves passages on-demand"]}
+      ]
+    },
+    {
+      "id": "q11", "category": "comparison",
+      "question": "How does GraphRAG compare with vector RAG on global sensemaking questions?",
+      "reference_answer": "Vector RAG retrieves records close to the query in embedding space and struggles with global questions about a whole corpus. GraphRAG builds an entity graph index with hierarchical community summaries and shows substantial improvements over a vector RAG baseline in comprehensiveness and diversity of answers.",
+      "evidence": [{"paper": "graphrag", "contains": ["vector RAG baseline", "comprehensiveness"]}]
+    },
+    {
+      "id": "q12", "category": "multi_document",
+      "question": "How does RAG use DPR, and how was the DPR retriever trained?",
+      "reference_answer": "RAG initializes its retriever and builds its document index with a pre-trained DPR bi-encoder that was trained to retrieve documents containing answers to TriviaQA and Natural Questions. DPR trains its question and passage encoders with in-batch negatives (other questions' positive passages in the mini-batch serve as negatives), plus BM25 hard negatives.",
+      "evidence": [
+        {"paper": "rag", "contains": ["contain answers to TriviaQA"]},
+        {"paper": "dpr", "contains": ["In-batch negatives"]}
+      ]
+    },
+    {
+      "id": "q13", "category": "multi_document",
+      "question": "Which papers in the collection use BERT-based dense encoders for retrieval, and how?",
+      "reference_answer": "DPR uses two independent BERT-base (uncased) networks as question and passage encoders and takes the [CLS] representation (d = 768). RAG's retriever follows DPR's bi-encoder architecture with BERT-base query and document encoders.",
+      "evidence": [
+        {"paper": "dpr", "contains": ["two independent BERT"]},
+        {"paper": "rag", "contains": ["BERTBASE document encoder"]}
+      ]
+    },
+    {
+      "id": "q14", "category": "limitations",
+      "question": "What limitations of standard retrieval-augmented generation does Self-RAG identify?",
+      "reference_answer": "Standard RAG indiscriminately retrieves and incorporates a fixed number of passages regardless of whether retrieval is needed or the passages are relevant, which diminishes versatility and can produce unhelpful or low-quality outputs; and its outputs are not guaranteed to be consistent with the retrieved passages.",
+      "evidence": [
+        {"paper": "selfrag", "contains": ["indiscriminately retrieving and incorporating a fixed number"]},
+        {"paper": "selfrag", "contains": ["not guaranteed to be consistent"]}
+      ]
+    },
+    {
+      "id": "q15", "category": "limitations",
+      "question": "What limitations of its evaluation does the GraphRAG paper report?",
+      "reference_answer": "The evaluation only covers sensemaking questions over two corpora of roughly 1 million tokens each, so generalization to other domains and use cases is unknown, and fabrication rates were not compared (e.g. with SelfCheckGPT).",
+      "evidence": [{"paper": "graphrag", "contains": ["two corpora", "1 million tokens"]}]
+    },
+    {
+      "id": "q16", "category": "multi_query",
+      "question": "What retriever, generator and knowledge source does RAG combine?",
+      "reference_answer": "A DPR-based bi-encoder retriever, a BART-large generator (400M parameters), and a non-parametric memory of 21M 100-word Wikipedia chunks indexed with FAISS.",
+      "evidence": [
+        {"paper": "rag", "contains": ["based on DPR"]},
+        {"paper": "rag", "contains": ["BART-large"]},
+        {"paper": "rag", "contains": ["21M documents"]}
+      ]
+    },
+    {
+      "id": "q17", "category": "multi_query",
+      "question": "What criteria and which datasets does GraphRAG use for its evaluation?",
+      "reference_answer": "LLM-evaluated head-to-head criteria of comprehensiveness, diversity, empowerment and directness, on two datasets of about 1 million tokens: podcast transcripts and news articles.",
+      "evidence": [
+        {"paper": "graphrag", "contains": ["Comprehensiveness. How much detail"]},
+        {"paper": "graphrag", "contains": ["Podcast transcripts", "News articles", "1 million tokens|million tokens"]}
+      ]
+    },
+    {
+      "id": "q18", "category": "insufficient_evidence",
+      "question": "How does ColBERT's late interaction mechanism work?",
+      "reference_answer": "",
+      "evidence": [],
+      "answerable": false
+    },
+    {
+      "id": "q19", "category": "insufficient_evidence",
+      "question": "How many parameters does GPT-4 have?",
+      "reference_answer": "",
+      "evidence": [],
+      "answerable": false
+    },
+    {
+      "id": "q20", "category": "insufficient_evidence",
+      "question": "What score did Self-RAG achieve on the MMLU benchmark?",
+      "reference_answer": "",
+      "evidence": [],
+      "answerable": false
+    }
+  ]
+}

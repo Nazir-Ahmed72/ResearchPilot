@@ -32,6 +32,7 @@ dependencies = [
     "langgraph>=1.0",
     "langgraph-checkpoint-postgres>=3.0",
     "psycopg-pool>=3.2",
+    "langsmith>=0.3",
 ]
 
 [project.optional-dependencies]
@@ -40,6 +41,11 @@ dev = [
     "pytest-cov>=5.0",
     "httpx2>=2.14",
     "ruff>=0.6",
+]
+# Ragas generation metrics (judge LLM via Groq's OpenAI-compatible API); not needed to serve.
+eval = [
+    "ragas>=0.4",
+    "openai>=1.0",
 ]
 
 [tool.setuptools.packages.find]

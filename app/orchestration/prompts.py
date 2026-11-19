@@ -98,7 +98,9 @@ SYNTHESIZE_SYSTEM = (
     "claim must cite the evidence IDs that support it, using only IDs that appear in the "
     "evidence. Do not cite papers, numbers or facts that are not in the evidence. If evidence "
     "is missing or conflicting, say so in 'uncertainty' instead of guessing; statements about "
-    "what the evidence does NOT contain belong in 'uncertainty', never in claims. List the "
+    "what the evidence does NOT contain belong in 'uncertainty', never in claims. If the "
+    "evidence does not answer the question, set evidence_answers_question=false and make no "
+    "claims. List the "
     "evidence the summary relies on in 'summary_evidence_ids'. Keep claims concise and "
     "self-contained. " + UNTRUSTED_EVIDENCE_RULE
 )

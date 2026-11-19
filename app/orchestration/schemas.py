@@ -82,11 +82,20 @@ class Claim(BaseModel):
     evidence_ids: list[str] = Field(
         default_factory=list, description="IDs of the evidence passages that support it."
     )
-    basis: Literal["reported", "inferred"] = Field(
+    # A plain string (not an enum) on purpose: providers that validate tool calls server-side
+    # (Groq) reject the WHOLE answer if the model writes e.g. "uncertainty" here. Unknown values
+    # are normalised below instead of failing the run.
+    basis: str = Field(
         default="reported",
-        description="reported: stated in the cited evidence. inferred: your own synthesis or "
-        "hypothesis drawn from the evidence (e.g. a possible research gap).",
+        description="Exactly 'reported' (stated in the cited evidence) or 'inferred' (your own "
+        "synthesis or hypothesis drawn from the evidence, e.g. a possible research gap).",
     )
+
+    @field_validator("basis", mode="before")
+    @classmethod
+    def _normalise_basis(cls, value: object) -> str:
+        text = str(value or "reported").strip().lower()
+        return text if text in {"reported", "inferred"} else "inferred"
 
 
 class SynthesisSection(BaseModel):
@@ -95,8 +104,17 @@ class SynthesisSection(BaseModel):
 
 
 class Synthesis(BaseModel):
+    # Decided FIRST (models fill fields in order): does the evidence answer the question at all?
+    evidence_answers_question: bool = Field(
+        default=True,
+        description="Decide this first. True if the evidence answers the question at least "
+        "partly (then answer that part and put what is missing in 'uncertainty'). False only "
+        "if the passages contain nothing relevant to what is asked, e.g. they never mention the "
+        "model, method or benchmark the question is about.",
+    )
     summary: str = Field(
-        description="A direct 2-5 sentence answer. Cite evidence inline as [E1], [E2]."
+        description="A direct 2-5 sentence answer. Cite evidence inline as [E1], [E2]. If the "
+        "evidence does not answer the question, say only that."
     )
     summary_evidence_ids: list[str] = Field(
         default_factory=list, description="IDs of the evidence passages the summary relies on."

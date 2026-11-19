@@ -1,0 +1,316 @@
+[
+  {
+    "question_id": "q01",
+    "label_index": 0,
+    "paper": "rag",
+    "contains": [
+      "based on DPR",
+      "bi-encoder"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      3
+    ]
+  },
+  {
+    "question_id": "q02",
+    "label_index": 0,
+    "paper": "rag",
+    "contains": [
+      "BART-large",
+      "400M parameters"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      3
+    ]
+  },
+  {
+    "question_id": "q03",
+    "label_index": 0,
+    "paper": "rag",
+    "contains": [
+      "21M documents",
+      "FAISS"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      4
+    ]
+  },
+  {
+    "question_id": "q04",
+    "label_index": 0,
+    "paper": "dpr",
+    "contains": [
+      "9%-19%"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      1
+    ]
+  },
+  {
+    "question_id": "q05",
+    "label_index": 0,
+    "paper": "graphrag",
+    "contains": [
+      "Leiden community detection",
+      "hierarchical"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      5
+    ]
+  },
+  {
+    "question_id": "q06",
+    "label_index": 0,
+    "paper": "selfrag",
+    "contains": [
+      "reflection tokens",
+      "retrieval and critique tokens"
+    ],
+    "matching_chunks": 2,
+    "pages": [
+      1
+    ]
+  },
+  {
+    "question_id": "q07",
+    "label_index": 0,
+    "paper": "rag",
+    "contains": [
+      "hot-swapping"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      7
+    ]
+  },
+  {
+    "question_id": "q08",
+    "label_index": 0,
+    "paper": "rag",
+    "contains": [
+      "FEVER",
+      "4.3%"
+    ],
+    "matching_chunks": 2,
+    "pages": [
+      2,
+      6
+    ]
+  },
+  {
+    "question_id": "q09",
+    "label_index": 0,
+    "paper": "rag",
+    "contains": [
+      "uses the same retrieved document"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      3
+    ]
+  },
+  {
+    "question_id": "q09",
+    "label_index": 1,
+    "paper": "rag",
+    "contains": [
+      "different latent document for each target token"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      3
+    ]
+  },
+  {
+    "question_id": "q10",
+    "label_index": 0,
+    "paper": "rag",
+    "contains": [
+      "top K documents are retrieved"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      3
+    ]
+  },
+  {
+    "question_id": "q10",
+    "label_index": 1,
+    "paper": "selfrag",
+    "contains": [
+      "adaptively retrieves passages on-demand"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      1
+    ]
+  },
+  {
+    "question_id": "q11",
+    "label_index": 0,
+    "paper": "graphrag",
+    "contains": [
+      "vector RAG baseline",
+      "comprehensiveness"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      12
+    ]
+  },
+  {
+    "question_id": "q12",
+    "label_index": 0,
+    "paper": "rag",
+    "contains": [
+      "contain answers to TriviaQA"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      3
+    ]
+  },
+  {
+    "question_id": "q12",
+    "label_index": 1,
+    "paper": "dpr",
+    "contains": [
+      "In-batch negatives"
+    ],
+    "matching_chunks": 2,
+    "pages": [
+      3
+    ]
+  },
+  {
+    "question_id": "q13",
+    "label_index": 0,
+    "paper": "dpr",
+    "contains": [
+      "two independent BERT"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      3
+    ]
+  },
+  {
+    "question_id": "q13",
+    "label_index": 1,
+    "paper": "rag",
+    "contains": [
+      "BERTBASE document encoder"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      3
+    ]
+  },
+  {
+    "question_id": "q14",
+    "label_index": 0,
+    "paper": "selfrag",
+    "contains": [
+      "indiscriminately retrieving and incorporating a fixed number"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      1
+    ]
+  },
+  {
+    "question_id": "q14",
+    "label_index": 1,
+    "paper": "selfrag",
+    "contains": [
+      "not guaranteed to be consistent"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      1
+    ]
+  },
+  {
+    "question_id": "q15",
+    "label_index": 0,
+    "paper": "graphrag",
+    "contains": [
+      "two corpora",
+      "1 million tokens"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      11
+    ]
+  },
+  {
+    "question_id": "q16",
+    "label_index": 0,
+    "paper": "rag",
+    "contains": [
+      "based on DPR"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      3
+    ]
+  },
+  {
+    "question_id": "q16",
+    "label_index": 1,
+    "paper": "rag",
+    "contains": [
+      "BART-large"
+    ],
+    "matching_chunks": 3,
+    "pages": [
+      3,
+      17,
+      18
+    ]
+  },
+  {
+    "question_id": "q16",
+    "label_index": 2,
+    "paper": "rag",
+    "contains": [
+      "21M documents"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      4
+    ]
+  },
+  {
+    "question_id": "q17",
+    "label_index": 0,
+    "paper": "graphrag",
+    "contains": [
+      "Comprehensiveness. How much detail"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      7
+    ]
+  },
+  {
+    "question_id": "q17",
+    "label_index": 1,
+    "paper": "graphrag",
+    "contains": [
+      "Podcast transcripts",
+      "News articles",
+      "1 million tokens|million tokens"
+    ],
+    "matching_chunks": 2,
+    "pages": [
+      8,
+      11
+    ]
+  }
+]

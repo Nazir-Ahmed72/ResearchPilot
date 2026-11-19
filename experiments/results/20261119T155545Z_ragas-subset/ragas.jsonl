@@ -1,0 +1,6 @@
+{"question_id": "q01", "category": "simple_factual", "answerable": true, "ragas": {"faithfulness": null, "answer_relevancy": 0.8513, "answer_correctness": null, "context_recall": 0.0}}
+{"question_id": "q05", "category": "simple_factual", "answerable": true, "ragas": {"faithfulness": null, "answer_relevancy": 0.8927, "answer_correctness": null, "context_recall": 1.0}}
+{"question_id": "q10", "category": "comparison", "answerable": true, "ragas": {"faithfulness": null, "answer_relevancy": 0.8724, "answer_correctness": null, "context_recall": null}}
+{"question_id": "q12", "category": "multi_document", "answerable": true, "ragas": {"faithfulness": null, "answer_relevancy": 0.9189, "answer_correctness": null, "context_recall": 0.5}}
+{"question_id": "q14", "category": "limitations", "answerable": true, "ragas": {"faithfulness": null, "answer_relevancy": 0.9478, "answer_correctness": null, "context_recall": 1.0}}
+{"question_id": "q17", "category": "multi_query", "answerable": true, "ragas": {"faithfulness": null, "answer_relevancy": 0.9344, "answer_correctness": null, "context_recall": 0.0}}

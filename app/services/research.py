@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from langchain_core.callbacks import UsageMetadataCallbackHandler
+from langchain_core.callbacks import BaseCallbackHandler, UsageMetadataCallbackHandler
 from langgraph.graph.state import CompiledStateGraph
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload, sessionmaker
@@ -36,6 +36,7 @@ from app.database.models import (
 )
 from app.database.repositories.papers import CollectionRepository
 from app.database.session import session_scope
+from app.observability.tracing import flush
 from app.workers.dispatch import TaskDispatcher
 
 logger = logging.getLogger(__name__)
@@ -157,10 +158,12 @@ class ResearchRunner:
         session_factory: sessionmaker[Session],
         graph: CompiledStateGraph,
         settings: Settings,
+        tracer: BaseCallbackHandler | None = None,
     ) -> None:
         self.session_factory = session_factory
         self.graph = graph
         self.settings = settings
+        self.tracer = tracer  # LangSmith; None when tracing is disabled
 
     def _set(self, request_id: UUID, **fields: Any) -> None:
         with session_scope(self.session_factory) as s:
@@ -200,7 +203,7 @@ class ResearchRunner:
                 "on_node_start": self._progress(request_id),
                 "deadline": time.time() + self.settings.research_timeout_seconds,
             },
-            "callbacks": [usage],
+            "callbacks": [usage, *([self.tracer] if self.tracer else [])],
             "recursion_limit": RECURSION_LIMIT,
             "run_name": "research_workflow",
             "tags": ["research", strategy],
@@ -234,6 +237,7 @@ class ResearchRunner:
                 self.graph.invoke(initial, config)
             snapshot = self.graph.get_state(config)
         except Exception as exc:
+            flush(self.tracer)
             message = redact(f"{type(exc).__name__}: {exc}")[:1000]
             logger.error(
                 "Research run failed", extra={"request_id": str(request_id)}, exc_info=True
@@ -243,6 +247,7 @@ class ResearchRunner:
             )
             return JobStatus.FAILED
 
+        flush(self.tracer)
         if snapshot.next:  # paused by interrupt_before (human-in-the-loop)
             self._set(request_id, status=JobStatus.INTERRUPTED, current_node=snapshot.next[0])
             return JobStatus.INTERRUPTED

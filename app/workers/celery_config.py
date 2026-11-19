@@ -31,6 +31,7 @@ def create_celery_app(settings: Settings) -> Celery:
         task_routes={
             "researchpilot.ingest_paper": {"queue": INGESTION_QUEUE},
             "researchpilot.run_research": {"queue": RESEARCH_QUEUE},
+            "researchpilot.run_evaluation": {"queue": RESEARCH_QUEUE},
         },
         # Reliability: acknowledge only after the task finishes, so a crashed worker's task is
         # redelivered. Safe because the pipeline is idempotent.

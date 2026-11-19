@@ -23,6 +23,17 @@ NO_EVIDENCE_MESSAGE = (
     "collection filter, or uploading papers that cover this topic."
 )
 DROPPED_VERDICTS = {"unsupported", "uncited"}
+_ABSENCE = re.compile(
+    r"\b(evidence|passages?|papers?|sources?|documents?|context)\b[^.]{0,40}\b"
+    r"(does|do|did)\s+not\s+(provide|state|mention|contain|specify|include|report|discuss|"
+    r"describe|give|address)\b",
+    re.IGNORECASE,
+)
+
+
+def is_absence_statement(text: str) -> bool:
+    """'The evidence does not mention X' style statements: uncertainty, not findings."""
+    return bool(_ABSENCE.search(text))
 
 
 class _References:
@@ -102,7 +113,7 @@ def respond(
     refs = _References({e["eid"]: e for e in evidence})
 
     summary = _render_summary(synthesis.get("summary", ""), refs)
-    sections, removed = [], []
+    sections, removed, absences = [], [], []
     claim_no = 0
     for section in synthesis.get("sections", []):
         rendered = []
@@ -110,6 +121,10 @@ def respond(
             claim_no += 1
             v = verdicts.get(f"C{claim_no}", {})
             verdict = v.get("verdict", "unverified")
+            if is_absence_statement(claim.get("text") or ""):
+                # "The evidence does not mention X" is not a finding; it is uncertainty.
+                absences.append(claim.get("text"))
+                continue
             if verdict in DROPPED_VERDICTS:
                 removed.append({"text": claim.get("text"), "reason": v.get("reason") or verdict})
                 continue
@@ -124,8 +139,19 @@ def respond(
         if rendered:
             sections.append({"heading": section.get("heading"), "claims": rendered})
 
-    sufficient = bool(assessment.get("sufficient", True))
-    uncertainty = (synthesis.get("uncertainty") or "").strip()
+    # Two independent signals: the evaluator (complex path only) and the synthesizer, which
+    # also runs on the simple path and can tell that the retrieved passages miss the question.
+    # Three signals: the evaluator (complex path only), the synthesizer's own judgement, and a
+    # deterministic check that at least one substantive (non-absence) claim survived.
+    has_findings = any(s["claims"] for s in sections)
+    sufficient = (
+        bool(assessment.get("sufficient", True))
+        and bool(synthesis.get("evidence_answers_question", True))
+        and has_findings
+    )
+    uncertainty = " ".join(
+        part for part in [(synthesis.get("uncertainty") or "").strip(), *absences] if part
+    ).strip()
     lines = []
     if not sufficient:
         missing = "; ".join(assessment.get("missing_aspects") or [])

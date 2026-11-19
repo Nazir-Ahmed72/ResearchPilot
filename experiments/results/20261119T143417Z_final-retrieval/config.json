@@ -1,0 +1,53 @@
+{
+  "name": "final-retrieval",
+  "dataset": "rag_papers_v1",
+  "questions": 20,
+  "answerable": 17,
+  "papers": 4,
+  "created_at": "2026-11-19T14:34:17+00:00",
+  "git_commit": "f67bf88-dirty",
+  "top_k": 5,
+  "generation_strategy": null,
+  "options": {
+    "dataset": "rag_papers_v1",
+    "experiments": [
+      "E1",
+      "E2",
+      "E3",
+      "E4",
+      "E5"
+    ],
+    "top_k": 5,
+    "include_generation": false,
+    "generation_strategy": "hybrid_rerank",
+    "question_ids": null,
+    "limit": null,
+    "ragas": false,
+    "ragas_metrics": null,
+    "pace_seconds": 0.0,
+    "collection": null,
+    "langsmith": true,
+    "name": "final-retrieval"
+  },
+  "models": {
+    "main": "openai/gpt-oss-120b",
+    "fast": "openai/gpt-oss-20b",
+    "embedding": "BAAI/bge-small-en-v1.5",
+    "reranker": "BAAI/bge-reranker-base"
+  },
+  "retrieval_settings": {
+    "candidate_k": 30,
+    "rerank_candidate_k": 10,
+    "rrf_k": 60
+  },
+  "langsmith": {
+    "dataset": "researchpilot-rag_papers_v1",
+    "experiments": {
+      "E1": "E1-dense-0f9d885f",
+      "E2": "E2-sparse-27d646bc",
+      "E3": "E3-hybrid-fe89df9b",
+      "E4": "E4-hybrid_rerank-cbd74078",
+      "E5": "E5-hybrid_qt_rerank-98c13275"
+    }
+  }
+}

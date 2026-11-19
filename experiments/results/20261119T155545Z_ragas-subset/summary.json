@@ -1,0 +1,30 @@
+{
+  "source": "20261119T144103Z_final-generation",
+  "judge_model": "openai/gpt-oss-20b",
+  "metrics": [
+    "faithfulness",
+    "answer_relevancy",
+    "answer_correctness",
+    "context_recall"
+  ],
+  "questions": [
+    "q01",
+    "q05",
+    "q10",
+    "q12",
+    "q14",
+    "q17"
+  ],
+  "mean": {
+    "answer_correctness": null,
+    "answer_relevancy": 0.9029,
+    "context_recall": 0.5,
+    "faithfulness": null
+  },
+  "scored": {
+    "faithfulness": 0,
+    "answer_relevancy": 6,
+    "answer_correctness": 0,
+    "context_recall": 5
+  }
+}

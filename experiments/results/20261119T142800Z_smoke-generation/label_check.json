@@ -1,0 +1,15 @@
+[
+  {
+    "question_id": "q02",
+    "label_index": 0,
+    "paper": "rag",
+    "contains": [
+      "BART-large",
+      "400M parameters"
+    ],
+    "matching_chunks": 1,
+    "pages": [
+      3
+    ]
+  }
+]

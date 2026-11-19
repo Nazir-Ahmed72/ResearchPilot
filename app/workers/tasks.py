@@ -13,7 +13,7 @@ from app.core.logging import configure_logging
 from app.core.resources import Resources
 from app.ingestion.errors import PermanentIngestionError, TransientIngestionError
 from app.workers.celery_app import celery_app
-from app.workers.dispatch import INGEST_TASK_NAME, RESEARCH_TASK_NAME
+from app.workers.dispatch import EVALUATION_TASK_NAME, INGEST_TASK_NAME, RESEARCH_TASK_NAME
 
 logger = logging.getLogger(__name__)
 _resources: Resources | None = None
@@ -85,3 +85,10 @@ def run_research(self: Task, request_id: str) -> str | None:
     from the last LangGraph checkpoint rather than starting over."""
     status = get_resources().research_runner.run(UUID(request_id))
     return status.value if status else None
+
+
+@celery_app.task(name=EVALUATION_TASK_NAME, bind=True, max_retries=0)
+def run_evaluation(self: Task, batch_id: str) -> None:
+    from app.services.evaluations import execute_batch
+
+    execute_batch(get_resources(), UUID(batch_id))

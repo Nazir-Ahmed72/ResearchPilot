@@ -385,3 +385,36 @@ def test_progress_callback_sees_every_node(corpus) -> None:
 def test_unknown_interrupt_node_rejected(corpus) -> None:
     with pytest.raises(ValueError):
         Harness(corpus, interrupt_before=["nope"])
+
+
+def test_simple_path_reports_when_evidence_does_not_answer(corpus) -> None:
+    unrelated = Synthesis(
+        summary="The papers do not state GPT-4's parameter count.",
+        evidence_answers_question=False,
+        sections=[],
+        uncertainty="No passage mentions GPT-4.",
+    )
+    out = Harness(corpus, synthesizer=ScriptedStep(unrelated)).run("How many parameters has GPT-4?")
+    assert out["final"]["evidence_sufficient"] is False
+    assert "Evidence was insufficient" in out["final"]["answer_markdown"]
+
+
+def test_absence_only_answer_is_marked_insufficient(corpus) -> None:
+    absent = Synthesis(
+        summary="The evidence does not specify GPT-4's parameter count.",
+        sections=[
+            SynthesisSection(
+                heading="Explanation",
+                claims=[
+                    Claim(
+                        text="The provided evidence does not contain any information about GPT-4.",
+                        evidence_ids=["E1"],
+                    )
+                ],
+            )
+        ],
+    )
+    final = Harness(corpus, synthesizer=ScriptedStep(absent)).run("How big is GPT-4?")["final"]
+    assert final["evidence_sufficient"] is False
+    assert final["sections"] == []
+    assert "does not contain any information about GPT-4" in final["uncertainty"]

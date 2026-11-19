@@ -76,7 +76,11 @@ def is_transient(exc: BaseException) -> bool:
 
 
 def is_retryable_llm_error(exc: BaseException) -> bool:
-    return is_transient(exc) or isinstance(exc, (OutputParserException, ValidationError, TypeError))
+    if is_transient(exc) or isinstance(exc, (OutputParserException, ValidationError, TypeError)):
+        return True
+    # Groq rejects tool calls that violate the schema server-side (HTTP 400 tool_use_failed);
+    # generation is stochastic, so a second attempt usually produces a valid call.
+    return type(exc).__name__ == "BadRequestError" and "tool_use_failed" in str(exc)
 
 
 def _instrument(name: str, fn: NodeFn, deps: ResearchDependencies) -> Callable[..., dict[str, Any]]:

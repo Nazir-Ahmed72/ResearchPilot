@@ -251,8 +251,63 @@ langgraph 1.2, langgraph-checkpoint-postgres 3.2, psycopg-pool 3.3.
 * No streaming responses (progress by polling).
 * Answer quality is not yet measured systematically (M5).
 
-### Next milestone: M5 — Observability and evaluation
-LangSmith tracing (configurable, redacted), evaluation dataset (simple, multi-document,
-comparison, limitation, insufficient-evidence and multi-query questions), retrieval metrics
-(Recall@K, Precision@K, MRR, nDCG), Ragas generation metrics, citation metrics, experiments
-E1–E5 with a reproducible report, evaluation endpoints.
+### Next milestone: M5 — see below
+
+---
+
+## M5 — Observability and evaluation ✅ (2026-11-19)
+
+### Completed
+* LangSmith tracing (opt-in, explicit tracer with input/output redaction; named
+  `hybrid_search` / `cross_encoder_rerank` child runs; run metadata and tags; flush on finish).
+* Evaluation dataset `rag_papers_v1`: 20 questions in 6 categories incl. 3 unanswerable,
+  content-based evidence labels written from the indexed text and validated before every run.
+* Metrics: Recall@K, Precision@K, MRR, nDCG@K; end-to-end completion, abstention, false
+  abstention, evidence recall, citation label accuracy, citation validity/coverage, support rate,
+  latency (total/per node), tokens, cost; Ragas 0.4 (faithfulness, answer relevancy, answer
+  correctness, context recall) with Groq as judge and BGE embeddings.
+* Runner + CLI (`scripts/run_evaluation.py`), reproducible results under `experiments/results/`
+  (config with git commit, label check, per-question JSONL, summary, Markdown report), Ragas on
+  saved answers (`--ragas-from`), LangSmith dataset + one experiment per strategy (no
+  recomputation).
+* API: `POST /evaluations/run`, `GET /evaluations/results`, `GET /evaluations/results/{id}`;
+  Celery task on the research queue; `EvaluationRun` rows per experiment.
+* Docs: `docs/evaluation.md`, `docs/observability.md`; README updated.
+
+### Fixes to the research workflow found by evaluation
+* Unanswerable questions on the simple path were reported as sufficient: added
+  `evidence_answers_question` (decided first), a prompt rule, and a deterministic guard that moves
+  absence statements ("the evidence does not mention X") to uncertainty and marks the answer
+  insufficient when no finding remains. Then tuned so partially answerable questions still answer
+  the part they can (smoke tests: abstention 3/3, no false abstention).
+* `basis: "uncertainty"` from the model made Groq reject the whole synthesis (HTTP 400
+  tool_use_failed): `basis` is now a normalised string, and tool_use_failed is retried.
+* Secret redaction masked `input_tokens` / `max_tokens` (key pattern too broad): fixed.
+* Evaluation latency excluded model loading (warm-up), and summaries tolerate incomplete rows.
+
+### Results (details in docs/evaluation.md)
+* Retrieval Recall@5: E1 0.49, E2 0.47, E3 0.58, E4 0.59, E5 0.59 (identical on a re-run).
+* End to end (E4, 18/20 completed): abstention 1.00, false abstention 0.00, citation validity
+  1.00, support rate 0.97, evidence recall 0.50, citation label accuracy 0.30, p50 13.5 s.
+* Key finding: LLM-judged support (0.97) hides that half of the needed evidence is not retrieved;
+  overview chunks win over specific ones for questions phrased with the system's name.
+
+### Dependencies added
+ragas 0.4.4 (+ openai 1.109 for Groq's OpenAI-compatible API; `[eval]` extra), langsmith (explicit).
+
+### Tests executed
+* `pytest`: **283 passed, 9 skipped**. `ruff`: clean.
+* Live: retrieval E1–E5 (twice), generation on 20 questions with LangSmith tracing, Ragas subset,
+  LangSmith dataset + 5 experiments + 20 traces verified via the LangSmith API.
+
+### Known problems
+* Groq free tier: **200k tokens/day** on gpt-oss-120b; the generation run hit it after 18
+  questions. End-to-end comparison of all five strategies needs more quota.
+* Retrieval weaknesses identified (see improvement candidates in docs/evaluation.md): simple
+  factual recall 0.50, reranking hurts multi-part questions, QT has no measurable effect here.
+* The dataset is small (20 questions); results are directional.
+
+### Next milestone: M6 — Containerisation and CI
+Dockerfile (non-root), Docker Compose (API, worker, Redis, Qdrant; Neon stays managed), health
+checks, GitHub Actions CI (lint + tests without paid APIs). Requires the user's go-ahead to use
+Docker Desktop (its data lives on C: by default).

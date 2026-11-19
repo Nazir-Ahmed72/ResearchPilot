@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI
 
-from app.api.routes import health, papers, research, retrieval
+from app.api.routes import evaluations, health, papers, research, retrieval
 from app.core.config import Settings, get_settings
 from app.core.exceptions import ErrorResponse, register_exception_handlers
 from app.core.logging import configure_logging
@@ -74,6 +74,7 @@ def create_app(settings: Settings | None = None, resources: Resources | None = N
     api.include_router(papers.router)
     api.include_router(retrieval.router)
     api.include_router(research.router)
+    api.include_router(evaluations.router)
     app.include_router(api)
     return app
 

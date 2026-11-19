@@ -9,9 +9,9 @@ cross-paper comparisons, limitations, research gaps and literature reviews.
 The project focuses on backend engineering, retrieval quality, evaluation and observability
 rather than on a UI. The FastAPI Swagger page is the interface.
 
-> **Status:** work in progress. Ingestion (M2), the retrieval engine (M3) and the LangGraph
-> research workflow (M4) are complete and verified against real cloud services. LangSmith
-> tracing, evaluation and deployment are next. See the [roadmap](#roadmap) and
+> **Status:** work in progress. Ingestion (M2), retrieval (M3), the LangGraph research workflow
+> (M4) and observability/evaluation (M5) are complete and verified against real cloud services.
+> Containerisation and CI (M6) are next. See the [roadmap](#roadmap) and
 > [docs/DEVELOPMENT_PROGRESS.md](docs/DEVELOPMENT_PROGRESS.md). This README only describes what
 > exists; planned parts are marked as such.
 
@@ -74,11 +74,10 @@ an explicit multi-step research workflow, citation verification and measurable e
 * FastAPI with versioned routes, Pydantic schemas, one consistent error format, request IDs.
 * Structured JSON logging with secret redaction.
 * SQLAlchemy 2.0 + Alembic migrations on Neon serverless PostgreSQL.
-* 241 automated tests that need no network, plus opt-in suites for real models, live LLM calls
+* 283 automated tests that need no network, plus opt-in suites for real models, live LLM calls
   and PostgreSQL.
 
 ### Planned
-* LangSmith tracing, evaluation datasets, Ragas and retrieval metrics, experiment reports (M5).
 * Docker, Docker Compose and GitHub Actions CI (M6).
 
 ## Architecture
@@ -94,7 +93,7 @@ flowchart LR
     api --> qdrant
     worker -->|LangGraph research workflow| groq[Groq LLM]
     worker -->|checkpoints| pg
-    api -. planned .-> langsmith[LangSmith]
+    worker -. traces .-> langsmith[LangSmith]
 ```
 
 ```mermaid
@@ -140,8 +139,8 @@ decisions.
 | Embeddings / reranking | Sentence Transformers: `BAAI/bge-small-en-v1.5`, `BAAI/bge-reranker-base` |
 | LLM | LangChain + Groq (`openai/gpt-oss-120b`, `openai/gpt-oss-20b`) |
 | Orchestration | LangGraph (PostgreSQL checkpointer) |
-| Observability (planned) | LangSmith |
-| Evaluation (planned) | Ragas, custom retrieval metrics |
+| Observability | LangSmith (opt-in tracing, datasets, experiments) |
+| Evaluation | Ragas 0.4, custom retrieval and citation metrics |
 | Quality | pytest, Ruff |
 
 ## Getting started
@@ -225,8 +224,9 @@ Interactive docs at `/docs` (Swagger) and `/redoc`.
 | `POST` | `/api/v1/research/query` | Ask a research question; returns 202 and a status URL |
 | `GET` | `/api/v1/research/{id}` | Status, live progress (`current_node`) and the verified answer |
 | `POST` | `/api/v1/research/{id}/resume` | Resume a failed or paused run from its checkpoint |
-
-Planned: `/api/v1/evaluations/*` (M5).
+| `POST` | `/api/v1/evaluations/run` | Run retrieval experiments E1–E5 and/or the end-to-end evaluation in the background |
+| `GET` | `/api/v1/evaluations/results` | Evaluation runs with their metrics (`?experiment=E4`) |
+| `GET` | `/api/v1/evaluations/results/{id}` | One evaluation run |
 
 Example:
 
@@ -305,30 +305,62 @@ Routing rules, failure handling and live measurements are in
 
 ## Observability
 
-Implemented: structured JSON logs with request IDs, per-stage timings for ingestion and
-retrieval, and redaction of secrets (API keys, passwords, connection-string credentials).
+* **Structured JSON logs** with request IDs, per-stage timings, and redaction of credentials
+  (API keys, passwords, connection-string credentials); token counters are kept.
+* **Per-request metrics** for every research run: end-to-end and per-node latency, retries,
+  repairs, token usage per model, optional cost, errors and a compact node trace.
+* **LangSmith tracing (opt-in, `LANGSMITH_TRACING=true`)**: the whole LangGraph run, every node,
+  every LLM call (prompt, structured output, tokens, latency), and named `hybrid_search` /
+  `cross_encoder_rerank` steps with chunk ids and scores; tagged with request id, strategy,
+  collection, models and app version. Inputs and outputs are redacted before upload. Tests never
+  trace.
+* **LangSmith datasets and experiments**: the evaluation set and one experiment per retrieval
+  strategy, for side-by-side comparison.
 
-Planned (M5): LangSmith traces of every graph run, node, LLM call and retrieval, with metadata
-(request ID, strategy, model) and evaluation datasets. Tracing is optional, controlled by
-`LANGSMITH_TRACING`, and off for tests.
+Details: [docs/observability.md](docs/observability.md).
 
-## Evaluation (planned, M5)
+## Evaluation
 
-* Retrieval metrics: Recall@K, Precision@K, MRR, nDCG, context precision/recall.
-* Generation metrics (Ragas): faithfulness, answer relevancy, answer correctness.
-* Citation validity, coverage and support accuracy; latency, token usage and cost.
-* Experiments E1–E5 on a labelled question set, with results saved reproducibly.
+A labelled dataset of 20 questions over the four papers (simple factual, comparison,
+multi-document, limitations, multi-query and **unanswerable** questions). Evidence is labelled
+by content ("this paper, containing these phrases"), validated against the indexed chunks before
+every run, and robust to re-chunking. Retrieval is evaluated separately from generation.
 
-### Experiment results
+* **Retrieval:** Recall@K, Precision@K, MRR, nDCG@K and latency for strategies E1–E5.
+* **End to end:** completion, abstention accuracy, false abstention, evidence recall, citation
+  label accuracy (no LLM involved), citation validity/coverage, LLM-judged support rate,
+  latency (total and per node), tokens and cost per query.
+* **Ragas** (faithfulness, answer relevancy, answer correctness, context recall) with Groq as the
+  judge, on saved answers.
+* Results are written to `experiments/results/<timestamp>_<name>/` (config with code version,
+  per-question JSONL, summary, Markdown report) and can be published to LangSmith as a dataset
+  with one experiment per strategy.
 
-None yet. No evaluation has been run, so this README reports no scores. Early qualitative
-observations (latency, reranker calibration, a known retrieval miss) are in
-[docs/retrieval_engine.md](docs/retrieval_engine.md#findings-so-far).
+### Experiment results (single run, 17 answerable questions, top-K 5)
+
+| Exp | Strategy | Recall@5 | Precision@5 | MRR | nDCG@5 | Latency |
+|---|---|---|---|---|---|---|
+| E1 | dense | 0.490 | 0.129 | 0.345 | 0.354 | 0.25 s |
+| E2 | sparse (BM25) | 0.471 | 0.118 | 0.379 | 0.364 | 0.18 s |
+| E3 | hybrid (RRF) | 0.578 | 0.153 | 0.458 | 0.431 | 0.24 s |
+| E4 | hybrid + rerank | 0.588 | 0.165 | 0.456 | 0.461 | 10.0 s |
+| E5 | hybrid + query transformation + rerank | 0.588 | 0.165 | 0.456 | 0.461 | 10.3 s |
+
+End-to-end workflow (E4): abstention accuracy 1.00, false abstention 0.00, citation validity
+1.00, LLM-judged support rate 0.97, but **evidence recall 0.50 and citation label accuracy
+0.30**. Answers are faithful to what they cite, but often cite general overview passages rather
+than the most specific evidence. Median latency 13.5 s, ~7.2k tokens per query.
+
+Takeaways: hybrid retrieval clearly beats dense or sparse alone; reranking adds little at top-5
+on CPU and hurts multi-part questions; query transformation made no measurable difference on
+this set. These are directional results from a small dataset. Full tables, per-category results,
+caveats (including LLM-as-a-judge limitations) and next steps are in
+[docs/evaluation.md](docs/evaluation.md).
 
 ## Testing
 
 ```bash
-pytest                                  # 241 tests; no network or models needed
+pytest                                  # 283 tests; no network or models needed
 ruff check . && ruff format --check .
 
 # Opt-in suites
@@ -358,11 +390,14 @@ app/
   retrieval/      retrievers, fusion, reranker, query_transformer, engine
   services/       health, papers, research
   vectorstore/    Qdrant collection management
+  evaluation/     dataset + labels, metrics, retrieval/generation/Ragas evaluation, reports
+  observability/  LangSmith tracing
   workers/        Celery config, tasks, dispatchers
 migrations/       Alembic
-scripts/          compare_retrieval.py
+scripts/          compare_retrieval.py, run_evaluation.py
+experiments/      results/ of evaluation runs (reports, per-question data)
 tests/            unit/, integration/, fakes, PDF factory
-docs/             architecture, ingestion, retrieval, orchestration, progress log
+docs/             architecture, ingestion, retrieval, orchestration, observability, evaluation, progress
 ```
 
 ## Known limitations
@@ -392,8 +427,8 @@ docs/             architecture, ingestion, retrieval, orchestration, progress lo
 | M2 | Ingestion pipeline, background worker, paper endpoints | ✅ |
 | M3 | Retrieval engine: dense, sparse, hybrid, rerank, query transformation | ✅ |
 | M4 | LangGraph orchestration, citation verification, research endpoints | ✅ |
-| M5 | LangSmith tracing, evaluation framework, experiments E1–E5 | ⏳ next |
-| M6 | Docker, Docker Compose, GitHub Actions CI | planned |
+| M5 | LangSmith tracing, evaluation framework, experiments E1–E5 | ✅ |
+| M6 | Docker, Docker Compose, GitHub Actions CI | ⏳ next |
 | M7 | Final documentation and validation | planned |
 
 ## Future improvements

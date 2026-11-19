@@ -211,3 +211,44 @@ def test_verification_prompt_lists_each_passage_once() -> None:
     prompt = _claims_prompt(claims, by_id, 2000)
     assert prompt.count("alpha passage") == 1 and prompt.count("beta passage") == 1
     assert "Claim C4 (cites E1, E2): claim 4" in prompt
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("The provided evidence does not contain any information about GPT-4.", True),
+        ("The papers do not mention ColBERT.", True),
+        ("The evidence does not provide the number of parameters of the BART generator.", True),
+        ("RAG uses BART-large with 400M parameters.", False),
+        ("DPR does not require additional pretraining.", False),  # a finding, not an absence
+    ],
+)
+def test_absence_statements_are_detected(text: str, expected: bool) -> None:
+    from app.orchestration.nodes.response import is_absence_statement
+
+    assert is_absence_statement(text) is expected
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("reported", "reported"),
+        ("Inferred", "inferred"),
+        ("uncertainty", "inferred"),
+        (None, "reported"),
+    ],
+)
+def test_claim_basis_is_normalised_not_rejected(raw: object, expected: str) -> None:
+    from app.orchestration.schemas import Claim
+
+    assert Claim(text="x", basis=raw).basis == expected  # type: ignore[arg-type]
+
+
+def test_groq_schema_violation_is_retryable() -> None:
+    from app.orchestration.graph import is_retryable_llm_error
+
+    BadRequestError = type("BadRequestError", (Exception,), {})  # noqa: N806
+    assert is_retryable_llm_error(BadRequestError("Error code: 400 ... 'code': 'tool_use_failed'"))
+    assert not is_retryable_llm_error(BadRequestError("Error code: 400 context too long"))
+    RateLimitError = type("RateLimitError", (Exception,), {})  # noqa: N806
+    assert is_retryable_llm_error(RateLimitError("429"))

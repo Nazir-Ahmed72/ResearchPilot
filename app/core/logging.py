@@ -21,7 +21,12 @@ request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 # Attributes present on every LogRecord; anything else was passed via ``extra=`` and is emitted.
 _RESERVED = set(vars(logging.LogRecord("", 0, "", 0, "", (), None))) | {"message", "asctime"}
 
-_SECRET_KEY_PATTERN = re.compile(r"(api[_-]?key|token|secret|password|authorization)", re.I)
+# Whole key names (or their suffix after _ / -), so "access_token" and "api_key" are masked but
+# counters such as "input_tokens" / "max_tokens" are not.
+_SECRET_KEY_PATTERN = re.compile(
+    r"(^|[_-])(api[_-]?key|access[_-]?key|token|secret|password|passwd|authorization|cookie)$",
+    re.I,
+)
 REDACTED = "***REDACTED***"
 # (pattern, replacement) pairs applied to every logged/stored string.
 _SECRET_VALUE_PATTERNS: list[tuple[re.Pattern[str], str]] = [

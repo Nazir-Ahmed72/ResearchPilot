@@ -1,0 +1,24 @@
+{
+  "retrieval": {},
+  "generation": {
+    "questions": 6,
+    "completed": 0,
+    "completion_rate": 0.0,
+    "abstention_accuracy": null,
+    "false_abstention_rate": null,
+    "citation_label_accuracy": null,
+    "evidence_recall": null,
+    "citation_validity": null,
+    "citation_coverage": null,
+    "support_rate": null,
+    "retry_rate": null,
+    "repair_rate": null,
+    "latency_ms_mean": null,
+    "latency_ms_p50": null,
+    "latency_ms_p95": null,
+    "node_latency_ms_mean": {},
+    "tokens_per_query_mean": null,
+    "cost_usd_per_query": null,
+    "ragas": {}
+  }
+}

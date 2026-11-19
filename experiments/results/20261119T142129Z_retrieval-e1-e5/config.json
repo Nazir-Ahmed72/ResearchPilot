@@ -1,0 +1,43 @@
+{
+  "name": "retrieval-e1-e5",
+  "dataset": "rag_papers_v1",
+  "questions": 20,
+  "answerable": 17,
+  "papers": 4,
+  "created_at": "2026-11-19T14:21:29+00:00",
+  "git_commit": "f67bf88-dirty",
+  "top_k": 5,
+  "generation_strategy": null,
+  "options": {
+    "dataset": "rag_papers_v1",
+    "experiments": [
+      "E1",
+      "E2",
+      "E3",
+      "E4",
+      "E5"
+    ],
+    "top_k": 5,
+    "include_generation": false,
+    "generation_strategy": "hybrid_rerank",
+    "question_ids": null,
+    "limit": null,
+    "ragas": false,
+    "ragas_metrics": null,
+    "pace_seconds": 0.0,
+    "collection": null,
+    "langsmith": false,
+    "name": "retrieval-e1-e5"
+  },
+  "models": {
+    "main": "openai/gpt-oss-120b",
+    "fast": "openai/gpt-oss-20b",
+    "embedding": "BAAI/bge-small-en-v1.5",
+    "reranker": "BAAI/bge-reranker-base"
+  },
+  "retrieval_settings": {
+    "candidate_k": 30,
+    "rerank_candidate_k": 10,
+    "rrf_k": 60
+  }
+}

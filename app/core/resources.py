@@ -178,8 +178,8 @@ class Resources:
         return self._checkpointer
 
     @cached_property
-    def research_graph(self) -> CompiledStateGraph:
-        """Built on first use: needs the LLM (GROQ_API_KEY) and, in production, Neon."""
+    def research_dependencies(self) -> ResearchDependencies:
+        """Built on first use: needs the LLM (GROQ_API_KEY)."""
         steps = self._llm_steps
         if steps is None:
             from app.llm.factory import create_chat_model
@@ -194,7 +194,7 @@ class Resources:
                 ),
             )
         s = self.settings
-        deps = ResearchDependencies(
+        return ResearchDependencies(
             engine=self.retrieval_engine,
             transformer=self.query_transformer,
             analyzer=steps.get("analyzer"),
@@ -212,25 +212,56 @@ class Resources:
                 timeout_seconds=s.research_timeout_seconds,
             ),
         )
+
+    @cached_property
+    def research_graph(self) -> CompiledStateGraph:
+        """The production graph: durable checkpoints (Neon) and configured interrupts."""
         return build_research_graph(
-            deps, checkpointer=self.checkpointer, interrupt_before=s.research_interrupt_before
+            self.research_dependencies,
+            checkpointer=self.checkpointer,
+            interrupt_before=self.settings.research_interrupt_before,
         )
+
+    @cached_property
+    def evaluation_graph(self) -> CompiledStateGraph:
+        """Same workflow without checkpoints or interrupts: evaluation runs need neither, and
+        should not leave checkpoint threads behind in the database."""
+        return build_research_graph(self.research_dependencies)
 
     @cached_property
     def research_runner(self):  # type: ignore[no-untyped-def]
         from app.services.research import ResearchRunner
 
         return ResearchRunner(
-            session_factory=self.session_factory, graph=self.research_graph, settings=self.settings
+            session_factory=self.session_factory,
+            graph=self.research_graph,
+            settings=self.settings,
+            tracer=self.tracer,
         )
+
+    @cached_property
+    def tracer(self):  # type: ignore[no-untyped-def]
+        """LangSmith tracer, or None when tracing is disabled (the default)."""
+        from app.observability.tracing import create_tracer
+
+        tracer = create_tracer(self.settings)
+        if tracer is not None:
+            from app.observability.tracing import flush
+
+            self._closers.append(lambda: flush(tracer))
+        return tracer
 
     @property
     def dispatcher(self) -> TaskDispatcher:
         if self._dispatcher is None:
             if self.settings.task_backend == "inline":
                 # The runner is resolved lazily so a missing LLM key fails the run, not startup.
+                from app.services.evaluations import execute_batch
+
                 self._dispatcher = InlineDispatcher(
-                    self.ingestion_pipeline, lambda rid: self.research_runner.run(rid)
+                    self.ingestion_pipeline,
+                    lambda rid: self.research_runner.run(rid),
+                    evaluation_runner=lambda bid: execute_batch(self, bid),
                 )
             else:
                 from app.workers.celery_config import create_celery_app

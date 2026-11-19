@@ -1,0 +1,225 @@
+{
+  "retrieval": {
+    "E1": {
+      "strategy": "dense",
+      "questions": 17,
+      "errors": 0,
+      "recall@5": 0.4902,
+      "precision@5": 0.1294,
+      "mrr": 0.3451,
+      "ndcg@5": 0.3538,
+      "latency_ms_mean": 249.9647,
+      "latency_ms_p50": 215.1,
+      "latency_ms_p95": 777.0,
+      "by_category": {
+        "comparison": {
+          "recall@5": 0.3333,
+          "precision@5": 0.0667,
+          "mrr": 0.1667,
+          "ndcg@5": 0.2103
+        },
+        "limitations": {
+          "recall@5": 1.0,
+          "precision@5": 0.3,
+          "mrr": 0.75,
+          "ndcg@5": 0.8467
+        },
+        "multi_document": {
+          "recall@5": 0.25,
+          "precision@5": 0.1,
+          "mrr": 0.25,
+          "ndcg@5": 0.1935
+        },
+        "multi_query": {
+          "recall@5": 0.4166,
+          "precision@5": 0.2,
+          "mrr": 0.2666,
+          "ndcg@5": 0.1829
+        },
+        "simple_factual": {
+          "recall@5": 0.5,
+          "precision@5": 0.1,
+          "mrr": 0.3542,
+          "ndcg@5": 0.3672
+        }
+      }
+    },
+    "E2": {
+      "strategy": "sparse",
+      "questions": 17,
+      "errors": 0,
+      "recall@5": 0.4706,
+      "precision@5": 0.1176,
+      "mrr": 0.3794,
+      "ndcg@5": 0.3636,
+      "latency_ms_mean": 182.6706,
+      "latency_ms_p50": 182.1,
+      "latency_ms_p95": 194.5,
+      "by_category": {
+        "comparison": {
+          "recall@5": 0.6667,
+          "precision@5": 0.1333,
+          "mrr": 0.4,
+          "ndcg@5": 0.4623
+        },
+        "limitations": {
+          "recall@5": 0.5,
+          "precision@5": 0.1,
+          "mrr": 0.25,
+          "ndcg@5": 0.3155
+        },
+        "multi_document": {
+          "recall@5": 0.25,
+          "precision@5": 0.1,
+          "mrr": 0.5,
+          "ndcg@5": 0.3065
+        },
+        "multi_query": {
+          "recall@5": 0.25,
+          "precision@5": 0.1,
+          "mrr": 0.5,
+          "ndcg@5": 0.2346
+        },
+        "simple_factual": {
+          "recall@5": 0.5,
+          "precision@5": 0.125,
+          "mrr": 0.3438,
+          "ndcg@5": 0.3852
+        }
+      }
+    },
+    "E3": {
+      "strategy": "hybrid",
+      "questions": 17,
+      "errors": 0,
+      "recall@5": 0.5784,
+      "precision@5": 0.1529,
+      "mrr": 0.4578,
+      "ndcg@5": 0.4306,
+      "latency_ms_mean": 244.4353,
+      "latency_ms_p50": 233.1,
+      "latency_ms_p95": 399.0,
+      "by_category": {
+        "comparison": {
+          "recall@5": 0.6667,
+          "precision@5": 0.1333,
+          "mrr": 0.4,
+          "ndcg@5": 0.4623
+        },
+        "limitations": {
+          "recall@5": 0.75,
+          "precision@5": 0.2,
+          "mrr": 0.6666,
+          "ndcg@5": 0.6533
+        },
+        "multi_document": {
+          "recall@5": 0.75,
+          "precision@5": 0.3,
+          "mrr": 0.2916,
+          "ndcg@5": 0.373
+        },
+        "multi_query": {
+          "recall@5": 0.4166,
+          "precision@5": 0.2,
+          "mrr": 0.6666,
+          "ndcg@5": 0.2869
+        },
+        "simple_factual": {
+          "recall@5": 0.5,
+          "precision@5": 0.1,
+          "mrr": 0.4167,
+          "ndcg@5": 0.4133
+        }
+      }
+    },
+    "E4": {
+      "strategy": "hybrid_rerank",
+      "questions": 17,
+      "errors": 0,
+      "recall@5": 0.5882,
+      "precision@5": 0.1647,
+      "mrr": 0.4559,
+      "ndcg@5": 0.4606,
+      "latency_ms_mean": 9985.9353,
+      "latency_ms_p50": 10006.6,
+      "latency_ms_p95": 11401.5,
+      "by_category": {
+        "comparison": {
+          "recall@5": 0.8333,
+          "precision@5": 0.2,
+          "mrr": 0.5,
+          "ndcg@5": 0.5496
+        },
+        "limitations": {
+          "recall@5": 1.0,
+          "precision@5": 0.3,
+          "mrr": 1.0,
+          "ndcg@5": 1.0
+        },
+        "multi_document": {
+          "recall@5": 0.75,
+          "precision@5": 0.3,
+          "mrr": 0.75,
+          "ndcg@5": 0.5601
+        },
+        "multi_query": {
+          "recall@5": 0.0,
+          "precision@5": 0.0,
+          "mrr": 0.0,
+          "ndcg@5": 0.0
+        },
+        "simple_factual": {
+          "recall@5": 0.5,
+          "precision@5": 0.125,
+          "mrr": 0.3438,
+          "ndcg@5": 0.3827
+        }
+      }
+    },
+    "E5": {
+      "strategy": "hybrid_qt_rerank",
+      "questions": 17,
+      "errors": 0,
+      "recall@5": 0.5882,
+      "precision@5": 0.1647,
+      "mrr": 0.4559,
+      "ndcg@5": 0.4606,
+      "latency_ms_mean": 10284.7765,
+      "latency_ms_p50": 10310.1,
+      "latency_ms_p95": 12031.6,
+      "by_category": {
+        "comparison": {
+          "recall@5": 0.8333,
+          "precision@5": 0.2,
+          "mrr": 0.5,
+          "ndcg@5": 0.5496
+        },
+        "limitations": {
+          "recall@5": 1.0,
+          "precision@5": 0.3,
+          "mrr": 1.0,
+          "ndcg@5": 1.0
+        },
+        "multi_document": {
+          "recall@5": 0.75,
+          "precision@5": 0.3,
+          "mrr": 0.75,
+          "ndcg@5": 0.5601
+        },
+        "multi_query": {
+          "recall@5": 0.0,
+          "precision@5": 0.0,
+          "mrr": 0.0,
+          "ndcg@5": 0.0
+        },
+        "simple_factual": {
+          "recall@5": 0.5,
+          "precision@5": 0.125,
+          "mrr": 0.3438,
+          "ndcg@5": 0.3827
+        }
+      }
+    }
+  },
+  "generation": null
+}
