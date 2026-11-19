@@ -56,6 +56,10 @@ jobs:
           grep -v -E '^\s*(#|--)' requirements/lock.txt > constraints.txt
           pip install --index-url "$TORCH_INDEX" "$(grep -E '^torch==' constraints.txt)"
           pip install --extra-index-url "$TORCH_INDEX" -c constraints.txt -e ".[dev]"
+      # pyproject.toml sets --basetemp=.cache/pytest; pytest creates only the last folder, and
+      # .cache/ is git-ignored, so it does not exist in a fresh checkout.
+      - name: Create local cache folder
+        run: mkdir -p .cache
       - name: Run tests
         env:
           ENVIRONMENT: test

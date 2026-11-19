@@ -30,3 +30,6 @@ experiments/scratch/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Personal learning notes (kept local, never committed)
+learning/
