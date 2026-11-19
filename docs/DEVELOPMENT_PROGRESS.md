@@ -344,8 +344,16 @@ on C:); GitHub Actions builds and smoke-tests the image instead.
 ### Verification
 * `docker compose config -q` (both profiles) passes locally (no daemon needed); resolved
   environment checked: local Redis/Qdrant inside Compose, database from `.env`.
-* Workflow YAML parsed. **The Docker build and the 3.11 / 3.12 test jobs run for the first time
-  on GitHub after the next push**; they have not been executed locally.
+* Workflow YAML parsed.
+* **First CI run failed** in the test jobs on all Python versions (lint and Docker passed):
+  `pyproject.toml` sets `--basetemp=.cache/pytest`, pytest only creates the last folder, and the
+  git-ignored `.cache/` does not exist in a fresh checkout, so 83 tests using `tmp_path` errored
+  in setup. Reproduced locally in a fresh clone (206 passed, 83 errors). Fixed by a CI step
+  `mkdir -p .cache`; fresh-clone check: 288 passed, 9 skipped.
+* **CI green** after the fix: lint, tests on Python 3.10 / 3.11 / 3.12, Docker image build and
+  container smoke test all pass.
+* Remaining CI warning: actions running on Node.js 20 (deprecated by GitHub); bump action
+  versions when new majors are available.
 
 ---
 
