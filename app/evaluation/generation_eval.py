@@ -26,6 +26,7 @@ from typing import Any
 from langchain_core.callbacks import BaseCallbackHandler, UsageMetadataCallbackHandler
 from langgraph.graph.state import CompiledStateGraph
 
+from app.core.logging import redact
 from app.evaluation.dataset import EvalDataset, EvalQuestion, matches_label
 from app.evaluation.metrics import mean, percentile
 
@@ -137,7 +138,7 @@ def evaluate_generation(
                 {
                     **row,
                     "completed": False,
-                    "error": f"{type(exc).__name__}: {exc}"[:500],
+                    "error": redact(f"{type(exc).__name__}: {exc}")[:500],
                     "latency_ms": round((time.perf_counter() - start) * 1000, 1),
                 }
             )

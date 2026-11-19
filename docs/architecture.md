@@ -1,7 +1,8 @@
 # ResearchPilot — Architecture
 
-Status: **design document**. Sections marked *(planned)* describe milestones not yet implemented;
-see [DEVELOPMENT_PROGRESS.md](DEVELOPMENT_PROGRESS.md) for what exists today.
+Status: implemented (M1–M6). Each section links to the detailed document for its module;
+measured behaviour and known limitations are in those documents and in
+[DEVELOPMENT_PROGRESS.md](DEVELOPMENT_PROGRESS.md).
 
 ## 1. Goals and shape
 
@@ -36,8 +37,8 @@ flowchart LR
 | `app/retrieval` | Dense, sparse, hybrid (RRF), reranking, query transformation, strategies E1–E5 ([details](retrieval_engine.md)) | `core`, `embeddings`, `llm` |
 | `app/llm` | Provider-neutral chat model factory (Groq: `gpt-oss-120b` main, `gpt-oss-20b` fast) | `core` |
 | `app/orchestration` | LangGraph state, nodes, routing, checkpointing ([details](orchestration.md)) | `retrieval`, `llm` |
-| `app/evaluation` *(planned M5)* | Retrieval metrics, Ragas, experiments E1–E5 | `retrieval`, `orchestration` |
-| `app/observability` *(planned M5)* | LangSmith configuration, trace metadata, redaction | `core` |
+| `app/evaluation` | Labelled dataset, retrieval/citation metrics, Ragas, experiments E1–E5, reports ([details](evaluation.md)) | `retrieval`, `orchestration` |
+| `app/observability` | LangSmith tracer with redaction, client for datasets/experiments ([details](observability.md)) | `core` |
 | `app/services` | Use-case logic called by routes and workers | all of the above |
 | `app/api` | HTTP routes, request/response schemas, dependency injection | `services` |
 | `app/workers` | Celery app/config, task entry points, dispatchers (Celery or in-process) | `ingestion` |
@@ -153,7 +154,9 @@ State holds IDs, scores and short text snippets only (no PDF bytes). Retries are
 setting; when evidence stays insufficient the answer says so explicitly. Checkpoints are stored
 in Neon via the LangGraph Postgres checkpointer (direct connection).
 
-## 7. Deployment *(planned M6)*
+## 7. Deployment
+
+Implemented; see [deployment.md](deployment.md) for the image, Compose stack, CI and cloud notes.
 
 ```mermaid
 flowchart LR
@@ -170,8 +173,9 @@ flowchart LR
     worker --> qdrant
 ```
 
-PostgreSQL is not part of Compose because Neon is managed. Qdrant and Redis can run in Compose,
-or be swapped for managed equivalents via `QDRANT_LOCATION` / `REDIS_URL`.
+PostgreSQL is not part of the default Compose stack because Neon is managed (an optional
+`local-db` profile adds a PostgreSQL container for offline use). Qdrant and Redis run in Compose,
+or are swapped for managed equivalents via `QDRANT_LOCATION` / `REDIS_URL`.
 
 ## 8. Security
 

@@ -98,11 +98,13 @@ def run_evaluation(
     options: EvaluationOptions,
     *,
     run_ids: dict[str, UUID] | None = None,
-    results_root: Path = RESULTS_ROOT,
+    results_root: Path | None = None,
     on_progress: Callable[[str], None] | None = None,
 ) -> tuple[Path, dict[str, Any]]:
     """Returns (results directory, summary). ``run_ids`` maps experiment keys (E1..E5, GEN) to
     ``EvaluationRun`` rows that are updated with status and metrics."""
+    # Resolved at call time (not as a default argument) so it can be configured/patched.
+    results_root = results_root or RESULTS_ROOT
     now = datetime.now(timezone.utc)
     _set_runs(resources, run_ids, status=JobStatus.RUNNING, started_at=now)
     try:
@@ -248,7 +250,7 @@ def score_saved_generation(
     question_ids: list[str] | None = None,
     metrics: list[str] | None = None,
     name: str = "ragas",
-    results_root: Path = RESULTS_ROOT,
+    results_root: Path | None = None,
     pace_seconds: float = 0.0,
 ) -> tuple[Path, dict[str, Any]]:
     """Ragas-score the answers of an EARLIER generation run instead of re-running the workflow.
@@ -267,6 +269,7 @@ def score_saved_generation(
     rows = [r for r in rows if r.get("completed")]
     if not rows:
         raise ValueError("No completed generation rows to score")
+    results_root = results_root or RESULTS_ROOT
     chosen = list(metrics or ragas_eval.DEFAULT_METRICS)
     ragas_eval.score_rows(
         rows, resources.settings, resources.dense_embedder, chosen, pace_seconds=pace_seconds

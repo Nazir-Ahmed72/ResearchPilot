@@ -1,0 +1,22 @@
+# Never send secrets, local environments, caches or data into the build context.
+.env
+.env.*
+!.env.example
+.venv/
+.cache/
+data/
+experiments/results/
+.git/
+.github/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+build/
+dist/
+tests/
+docs/
+.vscode/
+.idea/

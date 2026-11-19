@@ -6,7 +6,12 @@ import logging
 from uuid import UUID
 
 from celery import Task
-from celery.signals import worker_process_init, worker_process_shutdown, worker_ready
+from celery.signals import (
+    worker_process_init,
+    worker_process_shutdown,
+    worker_ready,
+    worker_shutdown,
+)
 
 from app.core.config import get_settings
 from app.core.logging import configure_logging
@@ -14,6 +19,7 @@ from app.core.resources import Resources
 from app.ingestion.errors import PermanentIngestionError, TransientIngestionError
 from app.workers.celery_app import celery_app
 from app.workers.dispatch import EVALUATION_TASK_NAME, INGEST_TASK_NAME, RESEARCH_TASK_NAME
+from app.workers.healthcheck import READY_FILE
 
 logger = logging.getLogger(__name__)
 _resources: Resources | None = None
@@ -48,6 +54,12 @@ def _ready(sender: object = None, **_: object) -> None:
     pool_name = f"{getattr(pool_cls, '__module__', '')}.{getattr(pool_cls, '__name__', '')}"
     if "prefork" not in pool_name:  # prefork children warm up in worker_process_init instead
         _warm_up()
+    READY_FILE.touch()  # consumed by the container health check (app.workers.healthcheck)
+
+
+@worker_shutdown.connect
+def _not_ready(**_: object) -> None:
+    READY_FILE.unlink(missing_ok=True)
 
 
 @worker_process_shutdown.connect

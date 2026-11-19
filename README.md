@@ -9,11 +9,10 @@ cross-paper comparisons, limitations, research gaps and literature reviews.
 The project focuses on backend engineering, retrieval quality, evaluation and observability
 rather than on a UI. The FastAPI Swagger page is the interface.
 
-> **Status:** work in progress. Ingestion (M2), retrieval (M3), the LangGraph research workflow
-> (M4) and observability/evaluation (M5) are complete and verified against real cloud services.
-> Containerisation and CI (M6) are next. See the [roadmap](#roadmap) and
-> [docs/DEVELOPMENT_PROGRESS.md](docs/DEVELOPMENT_PROGRESS.md). This README only describes what
-> exists; planned parts are marked as such.
+> **Status:** all milestones (M1–M7) are implemented. Ingestion, hybrid retrieval, the LangGraph
+> research workflow, LangSmith observability and evaluation are verified against real cloud
+> services. The Docker image and stack are built and smoke-tested by GitHub Actions CI rather than
+> on the development machine. Known limitations and measured results are listed below.
 
 ---
 
@@ -33,7 +32,6 @@ an explicit multi-step research workflow, citation verification and measurable e
 
 ## Features
 
-### Implemented
 
 **Ingestion** ([docs](docs/ingestion_pipeline.md))
 * Multi-file PDF upload with validation (extension, MIME, size, PDF signature, parseability,
@@ -74,11 +72,10 @@ an explicit multi-step research workflow, citation verification and measurable e
 * FastAPI with versioned routes, Pydantic schemas, one consistent error format, request IDs.
 * Structured JSON logging with secret redaction.
 * SQLAlchemy 2.0 + Alembic migrations on Neon serverless PostgreSQL.
-* 283 automated tests that need no network, plus opt-in suites for real models, live LLM calls
+* Docker image (non-root, CPU PyTorch), Docker Compose stack with health checks, and
+  GitHub Actions CI (lint, tests on Python 3.10–3.12, image build and smoke test).
+* 287 automated tests that need no network, plus opt-in suites for real models, live LLM calls
   and PostgreSQL.
-
-### Planned
-* Docker, Docker Compose and GitHub Actions CI (M6).
 
 ## Architecture
 
@@ -141,6 +138,7 @@ decisions.
 | Orchestration | LangGraph (PostgreSQL checkpointer) |
 | Observability | LangSmith (opt-in tracing, datasets, experiments) |
 | Evaluation | Ragas 0.4, custom retrieval and citation metrics |
+| Infrastructure | Docker, Docker Compose, GitHub Actions |
 | Quality | pytest, Ruff |
 
 ## Getting started
@@ -207,9 +205,29 @@ celery -A app.workers.celery_app worker -Q ingestion,research --pool=solo --logl
 The first ingestion and the first reranked search download the models (~1.3 GB) into
 `.cache/hf`.
 
+### Run with Docker
+
+```bash
+cp .env.example .env              # GROQ_API_KEY, DATABASE_URL(_UNPOOLED); Redis/Qdrant run locally
+docker compose up -d --build      # api, worker, redis, qdrant (+ one-off migrations)
+docker compose ps                 # wait until all services are healthy
+# API: http://localhost:8000/docs
+```
+
+Fully offline (local PostgreSQL instead of Neon):
+
+```bash
+COMPOSE_DATABASE_URL=postgresql+psycopg://researchpilot:researchpilot@postgres:5432/researchpilot \
+docker compose --profile local-db up -d --build
+```
+
+Image, services, health checks, CI and cloud deployment notes:
+[docs/deployment.md](docs/deployment.md).
+
 ## API
 
-Interactive docs at `/docs` (Swagger) and `/redoc`.
+Interactive docs at `/docs` (Swagger) and `/redoc`; conventions, error codes and payloads in
+[docs/api.md](docs/api.md).
 
 | Method | Endpoint | Description |
 |---|---|---|
@@ -360,7 +378,7 @@ caveats (including LLM-as-a-judge limitations) and next steps are in
 ## Testing
 
 ```bash
-pytest                                  # 283 tests; no network or models needed
+pytest                                  # 287 tests; no network or models needed
 ruff check . && ruff format --check .
 
 # Opt-in suites
@@ -394,10 +412,13 @@ app/
   observability/  LangSmith tracing
   workers/        Celery config, tasks, dispatchers
 migrations/       Alembic
+.github/workflows CI (lint, tests, Docker build + smoke test)
+Dockerfile, docker-compose.yml
 scripts/          compare_retrieval.py, run_evaluation.py
 experiments/      results/ of evaluation runs (reports, per-question data)
 tests/            unit/, integration/, fakes, PDF factory
-docs/             architecture, ingestion, retrieval, orchestration, observability, evaluation, progress
+docs/             architecture, ingestion, retrieval, orchestration, observability, evaluation,
+                  deployment, api, progress log
 ```
 
 ## Known limitations
@@ -428,8 +449,8 @@ docs/             architecture, ingestion, retrieval, orchestration, observabili
 | M3 | Retrieval engine: dense, sparse, hybrid, rerank, query transformation | ✅ |
 | M4 | LangGraph orchestration, citation verification, research endpoints | ✅ |
 | M5 | LangSmith tracing, evaluation framework, experiments E1–E5 | ✅ |
-| M6 | Docker, Docker Compose, GitHub Actions CI | ⏳ next |
-| M7 | Final documentation and validation | planned |
+| M6 | Docker, Docker Compose, GitHub Actions CI | ✅ |
+| M7 | Final documentation and validation | ✅ |
 
 ## Future improvements
 

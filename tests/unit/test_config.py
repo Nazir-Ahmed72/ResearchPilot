@@ -95,3 +95,8 @@ def test_migrations_prefer_direct_endpoint() -> None:
 )
 def test_pooled_endpoint_detection(url: str, pooled: bool) -> None:
     assert is_pooled_neon_url(url) is pooled
+
+
+def test_empty_secret_values_mean_not_set() -> None:
+    s = make(qdrant_api_key="", groq_api_key="  ", langsmith_api_key="")
+    assert s.qdrant_api_key is None and s.groq_api_key is None and s.langsmith_api_key is None

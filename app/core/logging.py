@@ -42,6 +42,7 @@ _SECRET_VALUE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"lsv2_[A-Za-z0-9_]{10,}"), REDACTED),  # LangSmith keys
     (re.compile(r"sk-[A-Za-z0-9_-]{10,}"), REDACTED),  # OpenAI/Anthropic-style keys
     (re.compile(r"(?<=://)[^:/@\s]+:[^@/\s]+(?=@)"), REDACTED),  # user:password in URLs
+    (re.compile(r"\borg_[A-Za-z0-9]{10,}"), REDACTED),  # provider organisation ids (Groq/OpenAI)
 ]
 
 

@@ -161,6 +161,12 @@ class Settings(BaseSettings):
     def _empty_is_none(cls, value: object) -> object:
         return None if value == "" else value
 
+    @field_validator("qdrant_api_key", "groq_api_key", "langsmith_api_key", mode="before")
+    @classmethod
+    def _empty_secret_is_none(cls, value: object) -> object:
+        # `QDRANT_API_KEY=` in an env file means "no key", not "an empty key".
+        return None if isinstance(value, str) and not value.strip() else value
+
     @field_validator("upload_dir", "hf_home", "temp_dir")
     @classmethod
     def _resolve_against_project_root(cls, value: Path | None) -> Path | None:

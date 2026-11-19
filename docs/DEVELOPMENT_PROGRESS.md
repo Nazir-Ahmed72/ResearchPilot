@@ -307,7 +307,75 @@ ragas 0.4.4 (+ openai 1.109 for Groq's OpenAI-compatible API; `[eval]` extra), l
   factual recall 0.50, reranking hurts multi-part questions, QT has no measurable effect here.
 * The dataset is small (20 questions); results are directional.
 
-### Next milestone: M6 — Containerisation and CI
-Dockerfile (non-root), Docker Compose (API, worker, Redis, Qdrant; Neon stays managed), health
-checks, GitHub Actions CI (lint + tests without paid APIs). Requires the user's go-ahead to use
-Docker Desktop (its data lives on C: by default).
+### Follow-up (same day)
+* Ragas on 6 saved answers: answer relevancy 0.90 (6/6), context recall 0.50 (5/6, agrees with
+  the label-based evidence recall). Faithfulness and answer correctness failed on Groq's daily
+  token limit for the judge model; command to re-run on a fresh quota day in docs/evaluation.md.
+* Ragas scoring can be paced (`--pace`) and run on saved answers (`--ragas-from`).
+
+---
+
+## M6 — Containerisation and CI ✅ (2026-11-19)
+
+Decision (user): **Option A** — no Docker on the development machine (Docker Desktop data lives
+on C:); GitHub Actions builds and smoke-tests the image instead.
+
+### Completed
+* `Dockerfile`: multi-stage, Python 3.11-slim, CPU PyTorch, versions constrained by the lock
+  file, dependency layer cached separately from code, non-root user (uid 10001), liveness
+  HEALTHCHECK, exec-form CMD with graceful shutdown, models in a volume (not baked in).
+* `docker-compose.yml`: api, worker, redis 8.8.4, qdrant v1.20.1, one-off `migrate` job, optional
+  `local-db` profile (postgres 18.7); health checks for every service, restart policies,
+  persistent volumes, private network (only the API port published), memory limits, startup
+  ordering (`service_healthy` / `service_completed_successfully`), Compose-level overrides so a
+  cloud `.env` still uses local Redis/Qdrant.
+* Worker health check (`python -m app.workers.healthcheck`: ready file + broker ping), since
+  Celery remote control is disabled.
+* `.dockerignore` (no `.env`, venv, caches, data, results, tests, docs in the build context).
+* `.github/workflows/ci.yml`: ruff; tests on Python 3.10 / 3.11 / 3.12 with CPU torch and lock
+  constraints; compose validation; image build with GHA cache; container smoke test (health,
+  docs, non-root, Alembic heads).
+* `docs/deployment.md` with the deployment diagram, configuration precedence, shutdown/recovery
+  behaviour, CI description and Render/AWS mapping (nothing deployed, no resources created).
+
+### Fixes
+* Empty secret values (`QDRANT_API_KEY=`) are now "not set" instead of an empty key.
+
+### Verification
+* `docker compose config -q` (both profiles) passes locally (no daemon needed); resolved
+  environment checked: local Redis/Qdrant inside Compose, database from `.env`.
+* Workflow YAML parsed. **The Docker build and the 3.11 / 3.12 test jobs run for the first time
+  on GitHub after the next push**; they have not been executed locally.
+
+---
+
+## M7 — Final documentation and validation ✅ (2026-11-19)
+
+### Completed
+* `docs/api.md` (conventions, error codes, every endpoint with payloads; generated route list
+  cross-checked against the live OpenAPI schema).
+* README: Docker section, roadmap complete, status and limitations; architecture doc updated.
+* Final validation: all modules compile; every setting documented in `.env.example`;
+  `alembic check` against Neon: no pending changes; **288 passed, 9 skipped**; ruff clean; live
+  API smoke test against Neon/Upstash/Qdrant Cloud: `/health` 200 (all checks ok), `/docs` 200,
+  4 papers ready, evaluations endpoint 200.
+
+### Issues found by the final validation (fixed)
+* The Groq organisation id (from rate-limit error messages) was stored in two evaluation result
+  files: error messages are now redacted before storage, a redaction pattern for provider
+  organisation ids was added, and the saved files were cleaned. It is still present in the
+  already-pushed M5 commit history (an account identifier, not a credential; history was not
+  rewritten).
+* Tests wrote result folders into the real `experiments/results/` (a default argument bound
+  `RESULTS_ROOT` at import time, so patching it had no effect): fixed, and the 11 test folders
+  were deleted.
+* A generated regex contained a literal backspace character instead of ``, silently
+  disabling the new redaction rule: fixed; the source tree was scanned for other control
+  characters (none).
+
+### Remaining work / known limitations
+* Groq free tier limits (8k tokens/min, 200k tokens/day for gpt-oss-120b) restrict end-to-end
+  evaluation: Ragas faithfulness/correctness and a full end-to-end E1–E5 comparison are pending.
+* Retrieval quality improvements identified by the evaluation (docs/evaluation.md).
+* No authentication; local-disk file storage shared by API and worker (see docs/deployment.md).
+* Streaming responses not implemented (progress via polling).
