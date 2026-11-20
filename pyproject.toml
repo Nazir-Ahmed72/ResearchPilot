@@ -47,6 +47,10 @@ eval = [
     "ragas>=0.4",
     "openai>=1.0",
 ]
+# Streamlit dashboard (ui/app.py); talks to the API over HTTP.
+ui = [
+    "streamlit>=1.50",
+]
 
 [tool.setuptools.packages.find]
 include = ["app*"]

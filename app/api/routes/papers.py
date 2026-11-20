@@ -72,8 +72,18 @@ def _read_limited(upload: UploadFile, limit: int) -> IncomingFile:
     },
 )
 def upload_papers(
-    files: list[UploadFile] = File(..., description="PDF files"),
-    collection: str | None = Form(None, description="Optional collection name (created if new)"),
+    # OpenAPI 3.1 describes file items as `contentMediaType`, which Swagger UI renders as a text
+    # box for arrays; `format: binary` makes it show a "Choose File" button per item instead.
+    files: list[UploadFile] = File(
+        ...,
+        description="One or more PDF files (click 'Add item' for more)",
+        json_schema_extra={"items": {"type": "string", "format": "binary"}},
+    ),
+    collection: str | None = Form(
+        None,
+        description="Optional collection name (created if new). Leave empty for none.",
+        examples=["rag-papers"],
+    ),
     service: PaperService = Depends(get_paper_service),
     resources: Resources = Depends(get_resources),
 ) -> UploadResponse:

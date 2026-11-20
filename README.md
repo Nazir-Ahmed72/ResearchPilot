@@ -205,6 +205,17 @@ celery -A app.workers.celery_app worker -Q ingestion,research --pool=solo --logl
 The first ingestion and the first reranked search download the models (~1.3 GB) into
 `.cache/hf`.
 
+### Dashboard (optional)
+
+A Streamlit dashboard covers every feature (upload files or a whole folder, search, research
+with live progress, evaluation results and reports) with buttons instead of raw API calls.
+With the API and worker running:
+
+```bash
+pip install -e ".[ui]"
+streamlit run ui/app.py          # opens http://localhost:8501
+```
+
 ### Run with Docker
 
 ```bash
@@ -414,7 +425,8 @@ app/
 migrations/       Alembic
 .github/workflows CI (lint, tests, Docker build + smoke test)
 Dockerfile, docker-compose.yml
-scripts/          compare_retrieval.py, run_evaluation.py
+scripts/          compare_retrieval.py, run_evaluation.py, upload_folder.py
+ui/               Streamlit dashboard (app.py)
 experiments/      results/ of evaluation runs (reports, per-question data)
 tests/            unit/, integration/, fakes, PDF factory
 docs/             architecture, ingestion, retrieval, orchestration, observability, evaluation,
